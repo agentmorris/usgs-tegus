@@ -39,7 +39,7 @@ Within those folders, each filename contains the species label, the remapped cat
 
 `train/green_iguana/green_iguana#IgIg#11E.11_C102#2017-2019#C102_11E.11#(19) 26APR18 - 10MAY18 AMH ARB#MFDC6689.JPG`
 
-Was at this location on the original disk:
+...was at this location on the original disk:
 
 `2017-2019/C102_11E.11/(19) 26APR18 - 10MAY18 AMH ARB/MFDC6689.JPG`
 
