@@ -107,8 +107,6 @@ Training (using MDv5 as a starting point) happens at the CLI, but [train-usgs-te
 * Use the MD visualization pipeline to visualize results
 * Use the MD inference pipeline to run the trained model
 
-[train-usgs-tegu-detector-yolov8.py](train-usgs-tegu-detector-yolov8.py) is a variant of this script that trains a YOLOv8 model from a COCO-trained starting point.
-
 
 ### Postprocess and review results
 
