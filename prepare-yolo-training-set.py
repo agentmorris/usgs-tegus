@@ -4,7 +4,8 @@
 #
 # Given the COCO-formatted training set, prepare the final YOLO training data:
 #
-# * Split into train/val
+# * Split into train/val (trivial, since the original folders are already sorted into train/val)
+# * Sample blanks
 # * Preview the train/val files to make sure everything looks OK
 # * Convert to YOLO format
 #
@@ -14,23 +15,36 @@
 
 import os
 import json
+import random
+import shutil
+
+from collections import defaultdict
+from tqdm import tqdm
 
 from data_management import coco_to_yolo
 from md_utils.path_utils import insert_before_extension
+from md_utils.path_utils import find_images
 
-input_folder_base = os.path.expanduser('~/data/usgs-kissel-training-resized')
+input_folder_base = os.path.expanduser('~/data/usgs-tegus/usgs-kissel-training-resized')
 input_folder_train = os.path.join(input_folder_base,'train')
 input_folder_val = os.path.join(input_folder_base,'val')
 
-output_folder_base = os.path.expanduser('~/data/usgs-kissel-training-yolo')
+output_folder_base = os.path.expanduser('~/data/usgs-tegus/usgs-kissel-training-yolo')
 yolo_dataset_file = os.path.join(output_folder_base,'dataset.yaml')
 os.makedirs(output_folder_base,exist_ok=True)
 
-input_coco_file = os.path.expanduser('~/data/usgs-tegus.resized.json')
+input_coco_file = os.path.expanduser('~/data/usgs-tegus/usgs-kissel-training-resized.json')
 
 split_names = ('train','val')
 
-blank_sample_p = 0.05
+# The fraction of blank images we'll sample
+#
+# The original dataset has 60,590 boxes and ~39k total blank images
+#
+# Sample around 5k blanks, which we'll complement with blanks from LILA later
+blank_sample_p = 0.125
+
+random.seed(0)
 
 
 #%% Consistency checks
@@ -40,6 +54,9 @@ assert os.path.isfile(input_coco_file)
 
 
 #%% Split the original COCO file into train/val files
+
+# This is not strictly necessary, it's just handy to have COCO files later for the 
+# train and val data separately.
 
 total_images_written = 0
 total_annotations_written = 0
@@ -103,6 +120,7 @@ from data_management.databases import integrity_check_json_db
 from md_visualization import visualize_db
 from md_utils import path_utils
 
+html_files = []
 # split_name = split_names[0]
 for split_name in split_names:
     
@@ -129,25 +147,29 @@ for split_name in split_names:
     options.parallelize_rendering = True
     options.viz_size = (900, -1)
     options.num_to_visualize = 5000
+    options.htmlOptions['maxFiguresPerHtmlFile'] = 1000
     
-    html_file,_ = visualize_db.process_images(subset_file,\
+    html_file,_ = visualize_db.visualize_db(subset_file,\
       os.path.expanduser('~/tmp/labelme_to_coco_preview-{}'.format(split_name)),
       input_folder,options)    
-    
+   
+    html_files.append(html_file)
+
+for s in html_files:    
     path_utils.open_file(html_file)
 
+# import clipboard; clipboard.copy(html_files[0])
+# import clipboard; clipboard.copy(html_files[1])
 
-#%% Convert the train/val sets to separate YOLO datasets, sampling the blanks as we go
 
-from data_management import coco_to_yolo # noqa
-
-import random
-random.seed(1)
+#%% Convert the train/val sets to separate YOLO datasets, sampling blanks as we go
 
 class_list_files = []
 blank_category_codes = set()
-# split_name = split_names[0]
 
+yolo_conversion_dry_run = False
+
+# split_name = split_names[0]
 for split_name in split_names:    
     
     blank_files = []
@@ -158,7 +180,7 @@ for split_name in split_names:
     print('\nCreating YOLO-formatted dataset in {}'.format(split_output_folder))
     
     images_to_exclude = []
-    category_names_to_exclude = ['empty','other','unknown']
+    category_names_to_exclude = ['other','unknown']
     
     with open(subset_file,'r') as f:
         d = json.load(f)
@@ -174,12 +196,24 @@ for split_name in split_names:
         
         assert image_fn.startswith(split_name)
         category_folder = image_fn.split('/')[1]
+        
+        # For some reason I had "empty" in "category_names_to_exclude", which doesn't make sense.
+        # "empty" is a category in the .json file, but this is referring to the category folders,
+        # where the closest thing is "blanks_and_very_small_things".
+        # 
+        # I'm just assert'ing here to make sure 2023-me didn't know something that 2024-me doesn't.
+        assert category_folder != 'empty'
+        
         if category_folder in category_names_to_exclude:
             images_to_exclude.append(image_fn)
+            
         elif category_folder == 'blanks_and_very_small_things':
+            
             category_code = image_fn.split('#')[1]
             blank_category_codes.add(category_code)
-            # For now, exclude everything that isn't blank: insects, very small reptiles, etc.
+            
+            # For now, exclude everything in the "blanks_and_very_smal_things" category that isn't blank: 
+            # insects, very small reptiles, etc.
             if category_code != 'blank':
                 images_to_exclude.append(image_fn)            
             blank_files.append(image_fn)
@@ -196,11 +230,12 @@ for split_name in split_names:
                      overwrite_images=False,
                      create_image_and_label_folders=False,
                      class_file_name='classes.txt',
-                     allow_empty_annotations=False, # don't matter for coco_camera_traps data
+                     allow_empty_annotations=False, # doesn't matter for coco_camera_traps data
                      clip_boxes=True,
                      images_to_exclude=images_to_exclude,
                      category_names_to_exclude=category_names_to_exclude,
-                     write_output=True)
+                     write_output=(not yolo_conversion_dry_run))
+    
     class_list_files.append(return_info['class_list_filename'])
     
     print('Included {} of {} blank files ({:.2f}%)'.format(
@@ -231,38 +266,116 @@ coco_to_yolo.write_yolo_dataset_file(yolo_dataset_file,
                                      test_folder_relative=None)
 
 
-#%% Prepare symlinks for Bounding Box Editor
+#%% Copy the dataset files for Bounding Box editor
 
 # split_name = 'val'
 for split_name in split_names:    
     
-    print('Creating symlinks for {}'.format(split_name))
+    print('Preparing {} for BBE'.format(split_name))
     split_output_folder = os.path.join(output_folder_base,split_name)
-    source_folder = split_output_folder
-    images_folder = source_folder + '-images-symlinks'
-    labels_folder = source_folder + '-labels-symlinks'
-    coco_to_yolo.create_yolo_symlinks(source_folder,images_folder,labels_folder,
-                                      class_list_file=class_list_files[0],
-                                      class_list_output_name='object.data',
-                                      force_lowercase_image_extension=True)
+    target_class_list_file = os.path.join(split_output_folder,'object.data')
+    shutil.copyfile(class_list_files[0],target_class_list_file)
 
 
-#%% Scrap
+#%% Load the list of blank images downloaded from LILA
 
-if False:
+# Also see create_lila_blank_set.py
+
+# Enumerate blank images
+lila_blank_base = os.path.expanduser('~/lila/lila_blanks')
+lila_blank_image_folder = os.path.join(lila_blank_base,'confirmed_blanks')
+blank_images = find_images(lila_blank_image_folder,recursive=True,return_relative_paths=True)
+
+print('Found {} blank images in {}'.format(len(blank_images),lila_blank_base))
+
+# Load the mapping from filenames to locations, and invert to get a mapping from locations to filenames
+fn_relative_to_location_file = os.path.join(lila_blank_base,'confirmed_fn_relative_to_location.json')
+
+with open(fn_relative_to_location_file,'r') as f:
+    fn_relative_to_location = json.load(f)
+
+assert len(blank_images) == len(fn_relative_to_location)
     
-    pass
+location_to_relative_image_filenames = defaultdict(list)
 
-    #%% Read the code --> common mapping, as an interactive convenient
-
-    spp_to_common_file = os.path.expanduser('~/data/usgs-kissel/usgs-kissel_spp_to_common.json')
-
-    with open(spp_to_common_file,'r') as f:
-        spp_to_common = json.load(f)
-
-
-    #%% Print category code mappings for the blanks_and_very_small_things category
+for fn_relative in tqdm(fn_relative_to_location.keys()):
+    location = fn_relative_to_location[fn_relative]
+    location_to_relative_image_filenames[location].append(fn_relative)
     
-    for spp in blank_category_codes:
-        print('{}: {}'.format(spp,spp_to_common[spp]))          
 
+#%% Split blank images locations into train/val
+
+random.seed(0)
+all_locations = list(location_to_relative_image_filenames)
+val_fraction = 0.15
+n_val_locations = round(val_fraction * len(all_locations))
+n_train_locations = len(all_locations) - n_val_locations
+val_locations = random.sample(all_locations,n_val_locations)
+train_locations = []
+for location in tqdm(all_locations):
+    if location not in val_locations:
+        train_locations.append(location)
+assert len(train_locations) == n_train_locations
+print('\nSplit locations into {} train and {} val'.format(
+    n_train_locations,n_val_locations))
+
+
+#%% Copy blank images into the training folder
+
+split_names = ('train','val')
+split_to_locations = {'train':train_locations,'val':val_locations}
+
+# split_name = split_names[0]
+for split_name in split_names:
+    
+    split_base = os.path.join(output_folder_base,split_name)
+    assert os.path.isdir(split_base)
+    split_lila_blank_output_base = os.path.join(split_base,'lila-blanks')
+    os.makedirs(split_lila_blank_output_base,exist_ok=True)
+    
+    split_locations = split_to_locations[split_name]
+    
+    n_locations_this_split = len(split_locations)
+    n_images_this_split = 0
+    
+    # location = split_locations[0]
+    for location in tqdm(split_locations):
+        
+        relative_image_filenames = location_to_relative_image_filenames[location]
+        
+        # fn_relative = relative_image_filenames[0]
+        for fn_relative in relative_image_filenames:
+            
+            source_fn_abs = os.path.join(lila_blank_image_folder,fn_relative)
+            assert os.path.isfile(source_fn_abs)
+            target_fn_abs = os.path.join(split_lila_blank_output_base,fn_relative)
+            os.makedirs(os.path.dirname(target_fn_abs),exist_ok=True)
+            shutil.copyfile(source_fn_abs,target_fn_abs)
+            n_images_this_split += 1
+            
+    print('\nCopied {} files from {} locations for split {}'.format(
+        n_images_this_split,n_locations_this_split,split_name))
+
+
+#%% Summarize folder content
+
+images = find_images(output_folder_base,recursive=True)
+print('Found {} images'.format(len(images)))
+non_blanks = [fn for fn in images if 'lila-blank' not in fn]
+print('Found {} non-blank images'.format(len(non_blanks)))
+lila_blanks = [fn for fn in images if 'lila-blank' in fn]
+print('Found {} LILA-blank images'.format(len(lila_blanks)))
+
+
+#%% Resize images in place
+
+# TODO: trivially parallelizable
+
+from md_visualization.visualization_utils import resize_image
+
+# fn_abs = lila_blanks[0]
+for fn_abs in tqdm(lila_blanks):
+    
+    # cmd = 'file "{}"'.format(fn_abs); clipboard.copy(cmd)
+    _ = resize_image(fn_abs, target_width=1600, target_height=-1, output_file=fn_abs, no_enlarge_width=True, verbose=True)
+    
