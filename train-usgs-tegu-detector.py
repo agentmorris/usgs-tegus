@@ -102,11 +102,16 @@ assert os.path.isfile(base_model)
 
 project_dir = training_base_folder
 
-cmd = f'python train.py --img {image_size} --batch {batch_size} --epochs {epochs} --weights "{base_model}" --device {device_string} --project "{project_dir}" --name "{training_run_name}" --data "{yolo_dataset_file}"'
+run_dir = os.path.join(project_dir,training_run_name)
+if os.path.exists(run_dir):
+    print('\n*** Warning: folder {} exists. ***\n\nIf you are resuming, this is fine.\n'.format(
+        run_dir))
+    
+train_cmd = f'python train.py --img {image_size} --batch {batch_size} --epochs {epochs} --weights "{base_model}" --device {device_string} --project "{project_dir}" --name "{training_run_name}" --data "{yolo_dataset_file}"'
 
 print('Training command:\n')
-print(cmd)
-# clipboard.copy(cmd)
+print(train_cmd)
+# clipboard.copy(train_cmd)
 
 # Resume command
 resume_checkpoint = os.path.join(project_dir,training_run_name,'weights/last.pt')
@@ -206,7 +211,6 @@ for source_file_abs in other_files:
     shutil.copyfile(source_file_abs,target_file_abs)
 
 
-
 #%% Make plots during training
 
 import os
@@ -228,9 +232,9 @@ fig_00_fn_abs = os.path.join(results_page_folder,'figure_00.png')
 fig_01_fn_abs = os.path.join(results_page_folder,'figure_01.png')
 fig_02_fn_abs = os.path.join(results_page_folder,'figure_02.png')
     
-results_file = os.path.expanduser('~/tmp/unsw-alting/training/{}/results.csv'.format(training_run_name))
-clipboard.copy(results_file)
+results_file = os.path.join(project_dir,training_run_name,'results.csv')
 assert os.path.isfile(results_file)
+clipboard.copy(results_file)
 
 df = pd.read_csv(results_file)
 df = df.rename(columns=lambda x: x.strip())
@@ -291,7 +295,8 @@ with open(results_page_html_file,'w') as f:
     f.write('<img src="figure_02.png"><br/>\n')    
     f.write('</body></html>\n')
 
-open_file(results_page_html_file)
+from md_utils.path_utils import open_url_in_chrome
+open_url_in_chrome(results_page_html_file,False)
 
 
 #%% Validation with YOLOv5

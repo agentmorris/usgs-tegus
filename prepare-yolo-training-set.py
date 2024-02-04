@@ -361,21 +361,62 @@ for split_name in split_names:
 
 images = find_images(output_folder_base,recursive=True)
 print('Found {} images'.format(len(images)))
-non_blanks = [fn for fn in images if 'lila-blank' not in fn]
-print('Found {} non-blank images'.format(len(non_blanks)))
+
 lila_blanks = [fn for fn in images if 'lila-blank' in fn]
 print('Found {} LILA-blank images'.format(len(lila_blanks)))
+
+for split_name in ('train','val'):
+    split_folder = os.path.join(output_folder_base,split_name)
+    assert os.path.isdir(split_folder)
+    split_images = find_images(split_folder,recursive=True)
+    print('Found {} images for split {}'.format(len(split_images),split_name))
 
 
 #%% Resize images in place
 
-# TODO: trivially parallelizable
+# It would have been faster to do this during the copying step, but this on a single thread, 
+# this is a *lot* slower than copying, and it was useful to do some consistency-checking quickly
+# right after the copying step, so, this is a compromise: copy first, then resize in parallel.
 
 from md_visualization.visualization_utils import resize_image
+from multiprocessing.pool import ThreadPool
+from multiprocessing.pool import Pool
 
-# fn_abs = lila_blanks[0]
-for fn_abs in tqdm(lila_blanks):
+def resize_training_image(fn_abs):
+    # cmd = 'file "{}"'.format(fn_abs); clipboard.copy(cmd)    
+    _ = resize_image(fn_abs, target_width=1600, target_height=-1, output_file=fn_abs, 
+                     no_enlarge_width=True, verbose=True, quality=85)
+    return None
+
+pool_type = 'process'
+n_workers = 16
+
+if n_workers == 1:    
     
-    # cmd = 'file "{}"'.format(fn_abs); clipboard.copy(cmd)
-    _ = resize_image(fn_abs, target_width=1600, target_height=-1, output_file=fn_abs, no_enlarge_width=True, verbose=True)
+    # fn_abs = lila_blanks[0]
+    for fn_abs in tqdm(lila_blanks):
+        resize_training_image(fn_abs)
+
+else:
+    
+    if pool_type == 'thread':
+        pool = ThreadPool(n_workers); poolstring = 'threads'                
+    else:
+        assert pool_type == 'process'
+        pool = Pool(n_workers); poolstring = 'processes'
+    
+    print('Starting resizing pool with {} {}'.format(n_workers,poolstring))
+    
+    _ = list(tqdm(pool.imap(resize_training_image, lila_blanks)))
+
+
+#%% Scrap
+
+if False:
+
+    #%% Experimenting with image resizing
+    
+    fn_in = '/home/user/lila/lila_blanks/confirmed_blanks/idaho-camera-traps/public/loc_0003/loc_0003_im_000359.jpg'
+    fn_out = os.path.expanduser('~/tmp/loc_0003_im_000359-resized.jpg')
+    _ = resize_image(fn_in, target_width=1600, target_height=-1, output_file=fn_out, no_enlarge_width=True, verbose=True, quality=85)
     

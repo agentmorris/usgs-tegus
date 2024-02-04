@@ -116,6 +116,7 @@ Training (using MDv5 as a starting point) happens at the CLI, but [train-usgs-te
 * Renders detections onto thumbnail images
 * Generates confusion matrices and HTML preview pages to present the results
 
+
 ## TODOs 
 
 * Since we're mostly interested in tegus, experiment with resampling the training data to reduce the number of raccoons and crows
