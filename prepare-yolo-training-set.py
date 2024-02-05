@@ -272,3 +272,15 @@ for split_name in split_names:
     target_class_list_file = os.path.join(split_output_folder,'object.data')
     shutil.copyfile(class_list_files[0],target_class_list_file)
 
+
+#%% Optional extra resizing pass
+
+import os
+from md_visualization.visualization_utils import resize_image_folder
+
+input_folder = os.path.expanduser('~/data/usgs-tegus/usgs-kissel-training-yolo-1600')
+output_folder = os.path.expanduser('~/data/usgs-tegus/usgs-kissel-training-yolo')
+
+resize_image_folder(input_folder,output_folder,
+                    target_width=1280,verbose=False,quality=85,no_enlarge_width=True,
+                    pool_type='process',n_workers=12)

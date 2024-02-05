@@ -116,6 +116,9 @@ dt_string = '{}{}{}{}{}{}'.format(dt.year,str(dt.month).zfill(2),str(dt.day).zfi
 # Core data + LILA blanks (Linux)
 # dt_string = '20240203094739'
 
+# Core data + LILA blanks (Linux DDP)
+dt_string = '20240205101724'
+
 # Core data + LILA blanks + goannas (WSL)
 # dt_string = '20240204183846'
 
@@ -123,7 +126,7 @@ dt_string = '{}{}{}{}{}{}'.format(dt.year,str(dt.month).zfill(2),str(dt.day).zfi
 # dt_string = '20240205095058'
 
 # Core data + LILA blanks + goannas (WSL DDP)
-dt_string = '20240205100459'
+# dt_string = '20240205100459'
 
 assert len(dt_string) == 14
 
