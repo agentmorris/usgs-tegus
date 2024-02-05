@@ -113,25 +113,16 @@ dt = datetime.datetime.now()
 dt_string = '{}{}{}{}{}{}'.format(dt.year,str(dt.month).zfill(2),str(dt.day).zfill(2),
   str(dt.hour).zfill(2),str(dt.minute).zfill(2),str(dt.second).zfill(2))
 
-# Core data + LILA blanks (Linux)
-# dt_string = '20240203094739'
-
 # Core data + LILA blanks (Linux DDP)
-dt_string = '20240205101724'
-
-# Core data + LILA blanks + goannas (WSL)
-# dt_string = '20240204183846'
-
-# Core data + LILA blanks + goannas (Windows)
-# dt_string = '20240205095058'
+dt_string = '20240205101724'; exp_name = 'lilablanks'
 
 # Core data + LILA blanks + goannas (WSL DDP)
 # dt_string = '20240205100459'
 
 assert len(dt_string) == 14
 
-training_run_name = 'usgs-tegus-yolov5-{}-b{}-img{}-e{}'.format(
-    dt_string,batch_size,image_size,epochs)
+training_run_name = 'usgs-tegus-yolov5-{}-{}-b{}-img{}-e{}'.format(
+    exp_name,dt_string,batch_size,image_size,epochs)
 
 base_model = os.path.expanduser('~/models/camera_traps/megadetector/md_v5.0.0/md_v5a.0.0.pt')
 assert os.path.isfile(base_model)
