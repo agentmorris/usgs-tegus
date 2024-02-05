@@ -32,7 +32,18 @@ assert os.path.isfile(yolo_dataset_file)
 #%% Import yolov5 tools for stripping optimizer state if we stop training early
 
 import sys
-yolov5_dir = os.path.expanduser('~/git/yolov5-current')
+
+# Remove other YOLOv5 folders
+keep_path = []
+for s in sys.path:
+    if 'git/yolov5' in s:
+        print('Removing {} from PYTHONPATH'.format(s))
+    else:
+        keep_path.append(s)
+sys.path = keep_path
+
+yolov5_dir = os.path.expanduser('~/git/yolov5-training')
+assert os.path.isdir(yolov5_dir)
 if yolov5_dir not in sys.path:
     sys.path.append(yolov5_dir)
     
@@ -64,24 +75,33 @@ assert utils_imported
 mamba create --name yolov5 python=3.11 pip -y
 mamba activate yolov5
 cd ~/git
-git clone https://github.com/ultralytics/yolov5 yolov5-current
-cd yolov5-current
+git clone https://github.com/agentmorris/yolov5-training
+cd yolov5-training
 pip install -r requirements.txt
 
 mamba install -c conda-forge spyder
 pip install clipboard
+
+# Windows typically doesn't get PyTorch-GPU from the default YOLOv5 install, force a re-install
+pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118
 """
 
 
 #%% Train (YOLOv5)
 
 """
-cd ~/git/yolov5-current
+cd ~/git/yolov5-training
+
+mamba activate yolov5
 
 # I usually have an older commit of yolov5 on my PYTHONPATH, remove it.
+
+# Linux
 export PYTHONPATH=
 LD_LIBRARY_PATH=
-mamba activate yolov5
+
+# Windows
+set PYTHONPATH=
 """
 
 batch_size = 8
@@ -93,11 +113,17 @@ dt = datetime.datetime.now()
 dt_string = '{}{}{}{}{}{}'.format(dt.year,str(dt.month).zfill(2),str(dt.day).zfill(2),
   str(dt.hour).zfill(2),str(dt.minute).zfill(2),str(dt.second).zfill(2))
 
-# Core data + LILA blanks
+# Core data + LILA blanks (Linux)
 # dt_string = '20240203094739'
 
-# Core data + LILA blanks + goannas
-dt_string = '20240204183846'
+# Core data + LILA blanks + goannas (WSL)
+# dt_string = '20240204183846'
+
+# Core data + LILA blanks + goannas (Windows)
+# dt_string = '20240205095058'
+
+# Core data + LILA blanks + goannas (WSL DDP)
+dt_string = '20240205100459'
 
 assert len(dt_string) == 14
 
@@ -113,9 +139,15 @@ run_dir = os.path.join(project_dir,training_run_name)
 if os.path.exists(run_dir):
     print('\n*** Warning: folder {} exists. ***\n\nIf you are resuming, this is fine.\n'.format(
         run_dir))
-    
-train_cmd = f'python train.py --img {image_size} --batch {batch_size} --epochs {epochs} --weights "{base_model}" --device {device_string} --project "{project_dir}" --name "{training_run_name}" --data "{yolo_dataset_file}"'
 
+# See https://docs.ultralytics.com/yolov5/tutorials/multi_gpu_training/
+use_ddp = True
+if use_ddp:
+    base_train_command = 'python -m torch.distributed.run --nproc_per_node 2 train.py'
+else:
+    base_train_command = 'python train.py'    
+
+train_cmd = f'{base_train_command} --img {image_size} --batch {batch_size} --epochs {epochs} --weights "{base_model}" --device {device_string} --project "{project_dir}" --name "{training_run_name}" --data "{yolo_dataset_file}"'
 print('Training command:\n')
 print(train_cmd)
 # clipboard.copy(train_cmd)
@@ -126,7 +158,7 @@ resume_checkpoint = os.path.join(project_dir,training_run_name,'weights/last.pt'
 # This file doesn't exist when we start training the first time
 # os.path.isfile(resume_checkpoint)
 
-resume_cmd = 'python train.py --resume {}'.format(resume_checkpoint)
+resume_cmd = f'{base_train_command} --resume {resume_checkpoint}'
 
 print('\nResume command:\n')
 print(resume_cmd)
@@ -191,7 +223,7 @@ assert os.path.isdir(training_weights_dir)
 
 # Output folder
 model_folder = os.path.expanduser('~/models/usgs-tegus/{}'.format(training_run_name))
-checkpoint_tag = 'unknown'
+checkpoint_tag = '20240205'
 assert checkpoint_tag != 'unknown'
 model_folder = os.path.join(model_folder,checkpoint_tag)
 os.makedirs(model_folder,exist_ok=True)
