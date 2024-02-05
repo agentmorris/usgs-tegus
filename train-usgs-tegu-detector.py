@@ -295,8 +295,7 @@ with open(results_page_html_file,'w') as f:
     f.write('<img src="figure_02.png"><br/>\n')    
     f.write('</body></html>\n')
 
-from md_utils.path_utils import open_url_in_chrome
-open_url_in_chrome(results_page_html_file,False)
+open_file(results_page_html_file,browser_name='chrome')
 
 
 #%% Validation with YOLOv5
