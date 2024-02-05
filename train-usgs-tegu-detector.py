@@ -114,10 +114,10 @@ dt_string = '{}{}{}{}{}{}'.format(dt.year,str(dt.month).zfill(2),str(dt.day).zfi
   str(dt.hour).zfill(2),str(dt.minute).zfill(2),str(dt.second).zfill(2))
 
 # Core data + LILA blanks (Linux DDP)
-dt_string = '20240205101724'; exp_name = 'lilablanks'
+# dt_string = '20240205101724'; exp_name = 'lilablanks'
 
 # Core data + LILA blanks + goannas (WSL DDP)
-# dt_string = '20240205100459'
+dt_string = '20240205105940'; exp_name = 'lilablanks_goannas'
 
 assert len(dt_string) == 14
 

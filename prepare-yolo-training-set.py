@@ -285,7 +285,25 @@ resize_image_folder(input_folder,output_folder,
                     target_width=1280,verbose=False,quality=85,no_enlarge_width=True,
                     pool_type='process',n_workers=12)
 
+# Copy annotation files
 
+from md_utils.path_utils import recursive_file_list
+import shutil
+from tqdm import tqdm
+
+all_files_relative = recursive_file_list(input_folder,return_relative_paths=True)
+annotation_files_relative = [fn for fn in all_files_relative if fn.endswith('.txt')]
+print('Found {} annotation files (of {})'.format(
+    len(annotation_files_relative),len(all_files_relative)))
+
+# fn_relative = annotation_files_relative[-1]
+for fn_relative in tqdm(annotation_files_relative):
+    source_fn_abs = os.path.join(input_folder,fn_relative)
+    target_fn_abs = os.path.join(output_folder,fn_relative)
+    os.makedirs(os.path.dirname(target_fn_abs),exist_ok=True)
+    shutil.copyfile(source_fn_abs,target_fn_abs)
+
+    
 #%% Summarize folder content
 
 from md_utils.path_utils import find_images
