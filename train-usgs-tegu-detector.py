@@ -62,6 +62,7 @@ assert utils_imported
 
 """
 mamba create --name yolov5 python=3.11 pip -y
+mamba activate yolov5
 cd ~/git
 git clone https://github.com/ultralytics/yolov5 yolov5-current
 cd yolov5-current
@@ -91,7 +92,13 @@ device_string = '0,1'
 dt = datetime.datetime.now()
 dt_string = '{}{}{}{}{}{}'.format(dt.year,str(dt.month).zfill(2),str(dt.day).zfill(2),
   str(dt.hour).zfill(2),str(dt.minute).zfill(2),str(dt.second).zfill(2))
-dt_string = '20240203094739'
+
+# Core data + LILA blanks
+# dt_string = '20240203094739'
+
+# Core data + LILA blanks + goannas
+dt_string = '20240204183846'
+
 assert len(dt_string) == 14
 
 training_run_name = 'usgs-tegus-yolov5-{}-b{}-img{}-e{}'.format(

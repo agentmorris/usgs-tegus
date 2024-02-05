@@ -95,7 +95,11 @@ This happens in [prepare-yolo-training-set.py](prepare-yolo-training-set.py).  S
   * Sample blanks randomly
   * Exclude everything in the "blanks and very small things" folder that isn't blank: insects, tiny reptiles, etc.  I just decided to punt on these.
   * Exclude the "other" and "unknown" categories
-* Optionally, we also add a sample of out-of-domain blank images at the end of this script.  Blanks are originally fetched from LILA and organized via [create_lila_blank_set.py](https://github.com/agentmorris/MegaDetector/blob/main/data_management/lila/create_lila_blank_set.py), but the splitting into train/val and the resizing to 1600px for faster training happens here.
+
+
+### Add blanks from LILA
+
+This happens in [add-lila-blanks.py](add-lila-blanks.py).  Blanks are originally fetched from LILA and organized via [create_lila_blank_set.py](https://github.com/agentmorris/MegaDetector/blob/main/data_management/lila/create_lila_blank_set.py), but the splitting into train/val and the resizing to 1600px for faster training happens here.
 
 
 ### Train
