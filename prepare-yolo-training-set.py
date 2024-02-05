@@ -284,3 +284,29 @@ output_folder = os.path.expanduser('~/data/usgs-tegus/usgs-kissel-training-yolo'
 resize_image_folder(input_folder,output_folder,
                     target_width=1280,verbose=False,quality=85,no_enlarge_width=True,
                     pool_type='process',n_workers=12)
+
+
+#%% Summarize folder content
+
+from md_utils.path_utils import find_images
+
+data_folder = os.path.expanduser('~/data/usgs-tegus/usgs-kissel-training-yolo-1600')
+
+images = find_images(data_folder,recursive=True)
+print('Found {} images in {}'.format(len(images),data_folder))
+
+lila_blanks = [fn for fn in images if 'lila-blank' in fn]
+print('Found {} LILA-blank images'.format(len(lila_blanks)))
+
+unsw_images = [fn for fn in images if 'unsw' in fn]
+print('Found {} UNSW images'.format(len(unsw_images)))
+
+print('')
+
+for split_name in ('train','val'):
+    split_folder = os.path.join(data_folder,split_name)
+    assert os.path.isdir(split_folder)
+    split_images = find_images(split_folder,recursive=True)
+    print('Found {} images for split {}'.format(len(split_images),split_name))
+
+
