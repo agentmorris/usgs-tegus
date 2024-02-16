@@ -116,10 +116,10 @@ dt_string = '{}{}{}{}{}{}'.format(dt.year,str(dt.month).zfill(2),str(dt.day).zfi
 run_index_string = ''
 
 # Core data + LILA blanks (Linux DDP)
-# dt_string = '20240205101724'; exp_name = 'lilablanks'
+dt_string = '20240205101724'; exp_name = 'lilablanks'; run_index_string = '6'
 
 # Core data + LILA blanks + goannas (WSL DDP)
-dt_string = '20240205105940'; exp_name = 'lilablanks_goannas'; run_index_string = ''
+# dt_string = '20240205105940'; exp_name = 'lilablanks_goannas'; run_index_string = ''
 
 assert len(dt_string) == 14
 
