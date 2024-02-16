@@ -113,16 +113,18 @@ dt = datetime.datetime.now()
 dt_string = '{}{}{}{}{}{}'.format(dt.year,str(dt.month).zfill(2),str(dt.day).zfill(2),
   str(dt.hour).zfill(2),str(dt.minute).zfill(2),str(dt.second).zfill(2))
 
+run_index_string = ''
+
 # Core data + LILA blanks (Linux DDP)
 # dt_string = '20240205101724'; exp_name = 'lilablanks'
 
 # Core data + LILA blanks + goannas (WSL DDP)
-dt_string = '20240205105940'; exp_name = 'lilablanks_goannas'
+dt_string = '20240205105940'; exp_name = 'lilablanks_goannas'; run_index_string = ''
 
 assert len(dt_string) == 14
 
-training_run_name = 'usgs-tegus-yolov5-{}-{}-b{}-img{}-e{}'.format(
-    exp_name,dt_string,batch_size,image_size,epochs)
+training_run_name = 'usgs-tegus-yolov5-{}-{}-b{}-img{}-e{}{}'.format(
+    exp_name,dt_string,batch_size,image_size,epochs,run_index_string)
 
 base_model = os.path.expanduser('~/models/camera_traps/megadetector/md_v5.0.0/md_v5a.0.0.pt')
 assert os.path.isfile(base_model)
@@ -217,7 +219,7 @@ assert os.path.isdir(training_weights_dir)
 
 # Output folder
 model_folder = os.path.expanduser('~/models/usgs-tegus/{}'.format(training_run_name))
-checkpoint_tag = '20240205'
+checkpoint_tag = 'unknown'
 assert checkpoint_tag != 'unknown'
 model_folder = os.path.join(model_folder,checkpoint_tag)
 os.makedirs(model_folder,exist_ok=True)

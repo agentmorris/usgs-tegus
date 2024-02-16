@@ -306,18 +306,30 @@ for fn_relative in tqdm(annotation_files_relative):
     
 #%% Summarize folder content
 
+import os
 from md_utils.path_utils import find_images
 
 data_folder = os.path.expanduser('~/data/usgs-tegus/usgs-kissel-training-yolo-1600')
 
 images = find_images(data_folder,recursive=True)
+
+
 print('Found {} images in {}'.format(len(images),data_folder))
+
+usgs_images = [fn for fn in images if (('unsw' not in fn) and ('lila-blank' not in fn))]
+usgs_blanks = [fn for fn in usgs_images if 'blanks' in fn]
+usgs_tegus = [fn for fn in usgs_images if 'tegu#' in fn]
+print('Found {} USGS images ({} blank) ({} tegus)'.\
+      format(len(usgs_images),len(usgs_blanks), len(usgs_tegus)))
 
 lila_blanks = [fn for fn in images if 'lila-blank' in fn]
 print('Found {} LILA-blank images'.format(len(lila_blanks)))
 
 unsw_images = [fn for fn in images if 'unsw' in fn]
 print('Found {} UNSW images'.format(len(unsw_images)))
+for s in unsw_images:
+    assert 'goanna' in s
+    assert 'blank' not in s
 
 print('')
 
