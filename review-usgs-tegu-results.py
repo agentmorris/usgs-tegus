@@ -37,7 +37,6 @@ if False:
     rendering_confidence_thresholds = {'default':0.3,'tegu':0.08}
     job_name = 'USGS tegu val'
 
-
 # YOLOv8 model:
 if True:
     model_file = os.path.expanduser('~/models/usgs-tegus/usgs-tegus-yolov8x-2023.10.26-b-1-img640-e300-best.pt')
@@ -670,5 +669,3 @@ with open(target_html_file,'w') as f:
     
 open_file(target_html_file)
 # import clipboard; clipboard.copy(target_html_file)
-
-

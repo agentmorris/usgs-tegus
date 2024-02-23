@@ -221,14 +221,14 @@ assert os.path.isdir(training_weights_dir)
 model_folder = os.path.expanduser('~/models/usgs-tegus/{}'.format(training_run_name))
 checkpoint_tag = 'unknown'
 assert checkpoint_tag != 'unknown'
-model_folder = os.path.join(model_folder,checkpoint_tag)
+model_folder = os.path.join(model_folder,'checkpoint-' + checkpoint_tag)
 os.makedirs(model_folder,exist_ok=True)
 
 for weight_name in ('last','best'):
     source_file = os.path.join(training_weights_dir,weight_name + '.pt')
     assert os.path.isfile(source_file)
-    target_file = os.path.join(model_folder,'{}-{}.pt'.format(
-        training_run_name,weight_name))
+    target_file = os.path.join(model_folder,'{}-{}-cp-{}.pt'.format(
+        training_run_name,weight_name,checkpoint_tag))
     
     shutil.copyfile(source_file,target_file)
     target_file_optimizer_stripped = target_file.replace('.pt','-stripped.pt')
