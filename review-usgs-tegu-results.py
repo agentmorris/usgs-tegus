@@ -9,30 +9,60 @@
 #%% Imports and constants
 
 import os
+import sys
 import json
-
-import matplotlib.pyplot as plt
-import numpy as np
+import stat
 
 from tqdm import tqdm
-from collections import defaultdict
 
-from md_utils.path_utils import find_images
-from md_utils.path_utils import flatten_path
-from md_utils.path_utils import open_file    
-from md_visualization import visualization_utils as vis_utils
-from md_utils.write_html_image_list import write_html_image_list
+from ultralytics import YOLO
 
-import md_visualization.plot_utils as plot_utils
+from data_management import yolo_output_to_md_output
+from md_utils.path_utils import open_file
 
-from multiprocessing.pool import ThreadPool
-from multiprocessing.pool import Pool
+# Import yolov5 tools for printing model information
+
+# Remove all YOLOv5 folders from the PYTHONPATH, to make sure the ultralytics
+# package load the correct YOLOv5 repo.
+keep_path = []
+for s in sys.path:
+    if 'git/yolov5' in s:
+        print('Removing {} from PYTHONPATH'.format(s))
+    else:
+        keep_path.append(s)
+sys.path = keep_path
+
+yolov5_dir = os.path.expanduser('~/git/yolov5-training')
+assert os.path.isdir(yolov5_dir)
+if yolov5_dir not in sys.path:
+    sys.path.append(yolov5_dir)
+
+# data_folder = os.path.expanduser('~/data/usgs-tegus/usgs-kissel-training-yolo-1600-usgs-only')
+# data_folder = os.path.expanduser('~/data/usgs-tegus/usgs-kissel-training-resized')
+data_folder = os.path.expanduser('~/data/usgs-tegus/usgs-kissel-training')
+assert os.path.isdir(data_folder)
+val_folder = os.path.join(data_folder,'val')
+assert os.path.isdir(val_folder)
+
+# val_file_coco = os.path.join(data_folder,'usgs-kissel-training-resized-val.json')
+val_file_coco = os.path.join(data_folder,'usgs-kissel-training-val-only.json')
+assert os.path.isfile(val_file_coco)
+
+results_base_folder = os.path.expanduser('~/tmp/usgs-tegus/model-comparison')
+preview_base_folder = os.path.join(results_base_folder,'preview')
+os.makedirs(preview_base_folder,exist_ok=True)
+
+n_gpus = 2
+augment = False
+
+
+#%% Define candidate models
 
 candidate_models = {}
 
 candidate_models['default'] = {}
-candidate_models['default']['confidence_thresholds'] = {'default':0.5,'tegu':0.45}
-candidate_models['default']['rendering_confidence_thresholds'] = {'default':0.3,'tegu':0.08}
+candidate_models['default']['confidence_thresholds'] = {'default':0.5,'tegu':0.38}
+candidate_models['default']['rendering_confidence_thresholds'] = {'default':0.05,'tegu':0.05}
 candidate_models['default']['model_file'] = None
 
 model_base_folder = '/mnt/c/users/dmorr/models/usgs-tegus'
@@ -45,6 +75,7 @@ candidate_models[model_name] = {}
 candidate_models[model_name]['model_file'] = \
     os.path.join(model_base_folder,
                  'usgs-tegus-yolov5x-231003-b8-img1280-e3002/weights/usgs-tegus-yolov5x-231003-b8-img1280-e3002-best-stripped.pt')
+candidate_models[model_name]['image_size'] = 1280
 candidate_models[model_name]['model_type'] = 'yolov5'
 
 model_name = 'all-classes_usgs-only_yolov8x'
@@ -52,6 +83,7 @@ candidate_models[model_name] = {}
 candidate_models[model_name]['model_file'] = \
     os.path.join(model_base_folder,
                  'usgs-tegus-yolov8x-2023.10.26-b-1-img640-e300/weights/usgs-tegus-yolov8x-2023.10.26-b-1-img640-e300-best.pt')
+candidate_models[model_name]['image_size'] = 640
 candidate_models[model_name]['model_type'] = 'yolov8'
 
 model_name = 'tegu-human_usgs-goannas-lilablanks_yolov5s'
@@ -59,6 +91,8 @@ candidate_models[model_name] = {}
 candidate_models[model_name]['model_file'] = \
     os.path.join(model_base_folder,
                  'usgs-tegus-tegu_human_w_goanna_lilablanks-im448-e300-b128-yolov5s/weights/usgs-tegus-tegu_human_w_goanna_lilablanks-im448-e300-b128-yolov5s-best.pt')
+candidate_models[model_name]['image_size'] = 448
+candidate_models[model_name]['confidence_thresholds'] = {'default':0.1,'tegu':0.05}
 candidate_models[model_name]['model_type'] = 'yolov5'
 
 model_name = 'tegu-human_usgs-only_yolov5s'
@@ -66,6 +100,8 @@ candidate_models[model_name] = {}
 candidate_models[model_name]['model_file'] = \
     os.path.join(model_base_folder,
                  'usgs-tegus-tegu_human-im448-e250-b64-yolov5s/weights/usgs-tegus-tegu_human-im448-e250-b64-yolov5s-best.pt')
+candidate_models[model_name]['image_size'] = 448    
+candidate_models[model_name]['confidence_thresholds'] = {'default':0.1,'tegu':0.05}
 candidate_models[model_name]['model_type'] = 'yolov5'
 
 model_name = 'all-classes_usgs-lilablanks_yolov5x6'
@@ -73,6 +109,7 @@ candidate_models[model_name] = {}
 candidate_models[model_name]['model_file'] = \
     os.path.join(model_base_folder,
                  'usgs-tegus-yolov5-lilablanks-20240205101724-b8-img1280-e3006/checkpoint-20240223/usgs-tegus-yolov5-lilablanks-20240205101724-b8-img1280-e3006-best-cp-20240223-stripped.pt')
+candidate_models[model_name]['image_size'] = 1280
 candidate_models[model_name]['model_type'] = 'yolov5'
 
 model_name = 'all-classes_usgs-goannas-lilablanks_yolov5x6'
@@ -80,15 +117,20 @@ candidate_models[model_name] = {}
 candidate_models[model_name]['model_file'] = \
     os.path.join(model_base_folder,
                  'usgs-tegus-yolov5-lilablanks_goannas-20240205105940-b8-img1280-e3003/checkpoint-20240223/usgs-tegus-yolov5-lilablanks_goannas-20240205105940-b8-img1280-e3003-best-cp-20240223-stripped.pt')    
+candidate_models[model_name]['image_size'] = 1280    
 candidate_models[model_name]['model_type'] = 'yolov5'
 
 model_filenames = set()
 
 for model_name in candidate_models.keys():
+    
     if model_name == 'default':
         continue
 
     model_info = candidate_models[model_name]
+    
+    results_file = os.path.join(results_base_folder,model_name + '.json')
+    model_info['results_file'] = results_file
     
     model_filename = model_info['model_file']
     assert '\\' not in model_filename
@@ -105,703 +147,303 @@ for model_name in candidate_models.keys():
         model_info['rendering_confidence_thresholds'] = \
             candidate_models['default']['rendering_confidence_thresholds']
 
+    dataset_file_name = os.path.join(os.path.dirname(model_filename),'dataset.yaml')
+    assert os.path.isfile(dataset_file_name)
+    
+    model_info['dataset_file'] = dataset_file_name
+    
+model_names = [s for s in candidate_models.keys() if s != 'default']
 
-#%% Convert YOLO to COCO
 
-data_folder = os.path.expanduser('~/data/usgs-tegus/usgs-kissel-training-yolo-1600-usgs-only')
-assert os.path.isdir(data_folder)
-val_folder = os.path.join(data_folder,'val')
-assert os.path.isdir(val_folder)
+#%% Validate model class names against dataset files
 
-val_file_coco = os.path.join(data_folder,'dataset-val-converted-from-yolo.json')
+# model_name = model_names[-1]; print(model_name)
+for model_name in model_names:
+    
+    model_info = candidate_models[model_name]
+    
+    model_type = model_info['model_type']
+    assert model_type in ('yolov5','yolov8')
+    
+    model_file = model_info['model_file']
+    assert os.path.isfile(model_file)
+    
+    model = YOLO(model_file)
+    model_class_id_to_name = model.names
+    
+    image_size = model_info['image_size']
+    _ = int(image_size)
+    
+    dataset_file_name = model_info['dataset_file']
+    dataset_file_class_id_to_name = \
+        yolo_output_to_md_output.read_classes_from_yolo_dataset_file(dataset_file_name)
+    assert len(model_class_id_to_name) == len(dataset_file_class_id_to_name)
+    
+    for class_id in model_class_id_to_name:
+        assert model_class_id_to_name[class_id] == dataset_file_class_id_to_name[class_id]
+    
+    yolo_dataset_file = model_info['dataset_file']
+    assert os.path.isfile(yolo_dataset_file) and yolo_dataset_file.endswith('.yaml')
+    
 
-from data_management.yolo_to_coco import yolo_to_coco
 
-_ = yolo_to_coco(input_folder = val_folder,
-                 class_name_file = os.path.join(data_folder,'dataset.yaml'),
-                 output_file = val_file_coco)
+#%% YOLO --> COCO conversion (if necessary)
+
+if False:
+    
+    #%% Convert YOLO val ground truth to COCO
+
+    val_file_coco = os.path.join(data_folder,'dataset-val-converted-from-yolo.json')    
+    
+    from data_management.yolo_to_coco import yolo_to_coco
+    
+    _ = yolo_to_coco(input_folder = val_folder,
+                     class_name_file = os.path.join(data_folder,'dataset.yaml'),
+                     output_file = val_file_coco,
+                     empty_image_handling = 'empty_annotations')
+    
+    with open(val_file_coco,'r') as f:
+        d = json.load(f)
+    
+    with open(val_file_coco,'w') as f:
+        json.dump(d,f,indent=1)
+
+
+#%% Create val-only json file
+
+if False:
+    
+    pass
+
+    #%%
+
+    ground_truth_file = os.path.expanduser('~/data/usgs-tegus/usgs-kissel-training/usgs-kissel-training.json')
+    assert os.path.isfile(ground_truth_file)
+    
+    val_file_coco = ground_truth_file.replace('.json','-val-only.json')
+    with open(ground_truth_file,'r') as f:
+        d = json.load(f)
+        
+    images_to_keep = []
+    
+    # im = d['images'][0]
+    for im in d['images']:
+        if 'train/' not in im['file_name']:
+            images_to_keep.append(im)
+        if 'width' in im:
+            del im['width']
+        if 'height' in im:
+            del im['height']
+            
+    annotations_to_keep = []
+    
+    # ann = d['annotations'][0]
+    for ann in d['annotations']:
+        if 'train/' not in ann['image_id']:
+            annotations_to_keep.append(ann)
+    
+    print('Kept {} of {} images'.format(len(images_to_keep),len(d['images'])))
+    print('Kept {} of {} annotations'.format(len(annotations_to_keep),len(d['annotations'])))
+    
+    d['images'] = images_to_keep
+    d['annotations'] = annotations_to_keep
+    
+    with open(val_file_coco,'w') as f:
+        json.dump(d,f,indent=1)
+
+    
+#%% Validate ground truth data
+
+with open(val_file_coco,'r') as f:
+    d = json.load(f)
+
+from collections import defaultdict
+image_id_to_annotations = defaultdict(list)
+
+for ann in d['annotations']:
+    image_id_to_annotations[ann['image_id']].append(ann)
+    
+category_id_to_name = {c['id']:c['name'] for c in d['categories']}  
+category_name_to_id = {c['name']:c['id'] for c in d['categories']}  
+empty_category_id = category_name_to_id['empty']
+
+for im in tqdm(d['images']):
+    
+    assert im['id'] in image_id_to_annotations
+    fn_relative = im['file_name']
+    fn_abs = os.path.join(data_folder,fn_relative)
+    assert os.path.isfile(fn_abs)
+    
+    annotations_this_image = image_id_to_annotations[im['id']]    
+    if 'blanks' in fn_relative:
+        assert len(annotations_this_image) == 1
+        assert annotations_this_image[0]['category_id'] == empty_category_id
+    else:
+        for ann in annotations_this_image:
+            assert ann['category_id'] != empty_category_id
+
+
+#%% Run each model on the validation data
+
+yolo_working_folder = os.path.expanduser('~/git/yolov5-training')
+
+gpu_to_commands = defaultdict(list)
+
+# model_name = model_names[0]
+for i_model,model_name in enumerate(model_names):
+    
+    model_info = candidate_models[model_name]
+    
+    model_type = model_info['model_type']
+    assert model_type in ('yolov5','yolov8')
+    
+    model_file = model_info['model_file']
+    assert os.path.isfile(model_file)
+    
+    image_size = model_info['image_size']
+    _ = int(image_size)
+    
+    yolo_dataset_file = model_info['dataset_file']
+    assert os.path.isfile(yolo_dataset_file) and yolo_dataset_file.endswith('.yaml')
+        
+    results_file = model_info['results_file']
+    
+    cmd = 'python run_inference_with_yolov5_val.py "{}" "{}" "{}" --model_type {}'.format(
+        model_file,
+        val_folder,
+        results_file,
+        model_type)
+    
+    if model_type == 'yolov5':
+        cmd += ' --yolo_working_folder {}'.format(yolo_working_folder)
+        
+    cmd += ' --overwrite_handling overwrite'
+    cmd += ' --yolo_dataset_file {}'.format(yolo_dataset_file)
+    cmd += ' --image_size {}'.format(image_size)
+    
+    if not augment:
+        cmd += ' --augment_enabled 0'
+
+    if n_gpus > 1:
+        gpu_index = i_model % n_gpus
+        cmd = 'CUDA_VISIBLE_DEVICES={} '.format(gpu_index) + cmd
+    else:
+        gpu_index = 0
+        
+    gpu_to_commands[gpu_index].append(cmd)    
+
+# ...for each model
+
+output_script_base = os.path.join(results_base_folder,'run_all_models_on_val_data.sh')
+
+if n_gpus > 1:
+    from md_utils.path_utils import insert_before_extension
+    for gpu_index in range(0,n_gpus):
+        cmd_file = insert_before_extension(output_script_base,'gpu_' + str(gpu_index).zfill(2))
+        with open(cmd_file,'w') as f:
+            for c in gpu_to_commands[gpu_index]:
+                f.write(c + '\n')
+        st = os.stat(cmd_file)
+        os.chmod(cmd_file, st.st_mode | stat.S_IEXEC)
+else:
+    output_script = output_script_base
+    assert len(gpu_to_commands) == 1
+    with open(output_script,'w') as f:
+        for c in gpu_to_commands[0]:
+            f.write(c + '\n')        
+    st = os.stat(output_script)
+    os.chmod(output_script, st.st_mode | stat.S_IEXEC)
+
+# import clipboard; cmd = commands[1]; print(cmd); clipboard.copy(cmd)
+
+
+#%% Run the script(s)
+
+# ...
+
+
+#%% Confirm that all the output files got written
+
+# ...and that they all contain results for the same files.
+
+images_in_results = None
+
+# model_name = model_names[0]
+for model_name in model_names:
+    
+    model_info = candidate_models[model_name]
+    assert os.path.isfile(model_info['results_file'])
+
+    with open(model_info['results_file'],'r') as f:
+        model_results = json.load(f)
+        
+    images_set = set([im['file'] for im in model_results['images']])
+    
+    if images_in_results is None:
+        images_in_results = images_set
+    else:
+        assert images_in_results == images_set
+    
+    
+#%% Remove "val/" from the ground truth file
+
+val_file_coco_no_val_folder = val_file_coco.replace('.json','_no_val_folder.json')
 
 with open(val_file_coco,'r') as f:
     d = json.load(f)
 
 for im in d['images']:
-    assert '/' not in im['file_name'] and '/' not in im['id']
-    im['file_name'] = 'val/' + im['file_name']
-    im['id'] = 'val/' + im['id']
-    
-with open(val_file_coco,'w') as f:
+    assert im['file_name'].startswith('val/')
+    im['file_name'] = im['file_name'].replace('val/','',1)
+    assert 'val/' not in im['file_name']
+
+with open(val_file_coco_no_val_folder,'w') as f:
     json.dump(d,f,indent=1)
     
     
-#%% Compare to the expected COCO file
+#%% Render confusion matrices for each model
 
-with open(val_file_coco,'r') as f:
-    d_converted_from_coco = json.load(f)
-
-expected_val_file_coco = os.path.join(data_folder,'usgs-kissel-training-resized-val.json')
-with open(expected_val_file_coco,'r') as f:
-    d_expected = json.load(f)
-
-converted_images = sorted([im['file_name'] for im in d_converted_from_coco['images']])
-converted_images = [os.path.splitext(fn)[0] for fn in converted_images]
-converted_images = ['_'.join(fn.split('_')[0:-1]) for fn in converted_images]
-converted_images = [fn.replace('/','#') for fn in converted_images]
-converted_images_set = set(converted_images)
-
-expected_images = sorted([im['file_name'] for im in d_expected['images']])
-expected_images = [fn.replace('val/','val/val#').replace('/','#') for fn in expected_images]
-expected_images = [os.path.splitext(fn)[0] for fn in expected_images]
-
-images_missing_from_yolo_set = []
-for expected_image_fn in expected_images:
-    if expected_image_fn not in converted_images_set:
-        images_missing_from_yolo_set.append(expected_image_fn)
-
-images_missing_from_yolo_set = sorted(images_missing_from_yolo_set)
-
-print('{} of {} images are missing from the YOLO set'.format(
-    len(images_missing_from_yolo_set),len(d_expected['images'])))
-
-for fn in images_missing_from_yolo_set:
-    assert 'blanks_and_very_small_things' in fn or 'other' in fn or 'unknown' in fn
-
-if False:    
-    assert len(d_expected['images']) == len(d_converted_from_coco['images'])
-    d_expected['images'][0]
-    d_converted_from_coco['images'][0]
-
-
-#%%
-
-# YOLOv8 model:
-if True:
-    model_file = os.path.expanduser('~/models/usgs-tegus/usgs-tegus-yolov8x-2023.10.26-b-1-img640-e300-best.pt')
-    model_type = 'yolov8'
-    scratch_folder = os.path.expanduser('~/tmp/usgs-tegus-val-analysis-v8-300')
-    confidence_thresholds = {'default':0.5,'tegu':0.45}
-    rendering_confidence_thresholds = {'default':0.3,'tegu':0.08}
-    job_name = 'USGS tegu val (yolov8-300)'
-
-assert os.path.isfile(model_file)
-augment = True
-if augment:
-    job_name += ' (aug)'
-
-if augment:
-    scratch_folder += '-aug'
-os.makedirs(scratch_folder,exist_ok=True)
-
-if model_type == 'yolov5':
-    yolo_working_folder = os.path.expanduser('~/git/yolov5-current')
-else:
-    yolo_working_folder = None
+from api.batch_processing.postprocessing.render_detection_confusion_matrix \
+    import render_detection_confusion_matrix
     
-training_data_folder = os.path.expanduser('~/data/usgs-kissel-training')
-training_data_folder_resized = os.path.expanduser('~/data/usgs-kissel-training-resized')
-
-training_metadata_file = os.path.expanduser('~/data/usgs-tegus.json')
-training_metadata_file_resized = os.path.expanduser('~/data/usgs-tegus.resized.json')
-
-training_metadata_file_val_only = \
-    training_metadata_file.replace('.json','-val_only.json')
-assert training_metadata_file_val_only != training_metadata_file    
-
-val_image_folder = os.path.join(training_data_folder,'val')
-assert os.path.isdir(val_image_folder)
-
-yolo_dataset_file = os.path.expanduser('~/data/usgs-kissel-training-yolo/dataset.yaml')
-
-results_file = os.path.join(scratch_folder,'md_val_results.json')
-
-preview_folder = os.path.join(scratch_folder,'preview')
-preview_images_folder = os.path.join(preview_folder,'images')
-os.makedirs(preview_images_folder,exist_ok=True)
-
+html_image_list_options = {'maxFiguresPerHtmlFile':3000}
 target_image_size = (1280,-1)
 
-parallelize_rendering = True
-parallelize_rendering_n_cores = 10
-parallelize_rendering_with_threads = False
-
-force_render_images = False
-
-
-#%% Run the model on the validation data
-
-cmd = 'python run_inference_with_yolov5_val.py {} {} {} --model_type {}'.format(
-    model_file,
-    val_image_folder,
-    results_file,
-    model_type)
-
-if model_type == 'yolov5':
-    cmd += ' --yolo_working_folder {}'.format(yolo_working_folder)
+# model_name = model_names[0]
+for model_name in model_names:
     
-cmd += ' --overwrite_handling overwrite'
-cmd += ' --yolo_dataset_file {}'.format(yolo_dataset_file)
+    model_info = candidate_models[model_name]
 
-if not augment:
-    cmd += ' --augment_enabled 0'
+    preview_folder = os.path.join(preview_base_folder,model_name)
+    confusion_matrix_results = render_detection_confusion_matrix(
+        ground_truth_file=val_file_coco_no_val_folder,
+        results_file=model_info['results_file'],
+        image_folder=val_folder,
+        preview_folder=preview_folder,
+        force_render_images=False, 
+        confidence_thresholds=model_info['confidence_thresholds'],
+        rendering_confidence_thresholds=model_info['rendering_confidence_thresholds'],
+        target_image_size=target_image_size,
+        parallelize_rendering=True,
+        parallelize_rendering_n_cores=10,
+        parallelize_rendering_with_threads=True,
+        job_name=model_name,
+        model_file=model_info['model_file'],
+        empty_category_name='empty',
+        html_image_list_options=html_image_list_options)
 
-print(cmd)
-# import clipboard; clipboard.copy(cmd)
-
-
-#%% Create a val-specific ground truth file
-
-if os.path.isfile(training_metadata_file_val_only):
-  
-    print('Val ground truth file {} exists, bypassing'.format(training_metadata_file_val_only))
+    model_info['confusion_matrix_results'] = confusion_matrix_results
     
-else:   
     
-    with open(training_metadata_file,'r') as f:
-        ground_truth_all = json.load(f)
-        
-    val_images = []
+#%% Open results
+
+# model_name = model_names[0]
+for model_name in model_names:
     
-    for im in ground_truth_all['images']:
-        if 'val/' in im['file_name']:
-            im['file_name'] = im['file_name'].replace('val/','')
-            val_images.append(im)
+    if 'all-classes' not in model_name or 'yolov5s' in model_name:
+        continue
     
-    val_image_ids = [im['id'] for im in val_images]
-    val_image_ids = set(val_image_ids)
-    
-    val_annotations = []
-    
-    for ann in ground_truth_all['annotations']:
-        if ann['image_id'] in val_image_ids:
-            val_annotations.append(ann)
-            
-    print('Keeping {} of {} images and {} of {} annotations'.format(
-        len(val_images),len(ground_truth_all['images']),
-        len(val_annotations),len(ground_truth_all['annotations'])))
-    
-    ground_truth_val = ground_truth_all
-    del ground_truth_all
-    
-    ground_truth_val['images'] = val_images
-    ground_truth_val['annotations'] = val_annotations
-    
-    with open(training_metadata_file_val_only,'w') as f:
-        json.dump(ground_truth_val,f,indent=1)
-    
-
-#%% Load val-specific ground truth
-
-with open(training_metadata_file_val_only,'r') as f:
-    ground_truth_val = json.load(f)
-
-filename_to_ground_truth_im = {}
-for im in ground_truth_val['images']:
-    assert im['file_name'] not in filename_to_ground_truth_im
-    filename_to_ground_truth_im[im['file_name']] = im
-
-
-#%% Confirm that the ground truth file matches the val folder
-
-val_images = find_images(val_image_folder,return_relative_paths=True,recursive=True)
-assert len(val_images) == len(ground_truth_val['images'])
-del val_images
-
-
-#%% Map images to categories
-
-gt_image_id_to_image = {im['id']:im for im in ground_truth_val['images']}
-gt_image_id_to_annotations = defaultdict(list)
-
-ground_truth_category_id_to_name = {}
-for c in ground_truth_val['categories']:
-    ground_truth_category_id_to_name[c['id']] = c['name']
-
-ground_truth_category_names = sorted(list(ground_truth_category_id_to_name.values()))
-    
-for ann in ground_truth_val['annotations']:
-    gt_image_id_to_annotations[ann['image_id']].append(ann)
-    
-gt_filename_to_category_names = defaultdict(set)
-
-for im in ground_truth_val['images']:
-    annotations_this_image = gt_image_id_to_annotations[im['id']]
-    for ann in annotations_this_image:
-        category_name = ground_truth_category_id_to_name[ann['category_id']]
-        gt_filename_to_category_names[im['file_name']].add(category_name)
-        
-for filename in gt_filename_to_category_names:
-    category_names_this_file = gt_filename_to_category_names[filename]
-    if 'empty' in category_names_this_file:
-        assert len(category_names_this_file)
-    assert len(category_names_this_file) > 0
-
-    
-#%% Load results
-
-with open(results_file,'r') as f:
-    md_results = json.load(f)
-
-results_category_id_to_name = md_results['detection_categories']
-
-
-#%% Render images with detections    
-
-def image_to_output_file(im):
-    
-    if isinstance(im,str):
-        filename_relative = im
-    else:
-        filename_relative = im['file']
-        
-    fn_clean = flatten_path(filename_relative).replace(' ','_')
-    return os.path.join(preview_images_folder,fn_clean)
-
-
-def render_image(im):
-    
-    assert im['file'] in filename_to_ground_truth_im
-    
-    input_file = os.path.join(val_image_folder,im['file'])
-    assert os.path.isfile(input_file)
-                          
-    output_file = image_to_output_file(im)
-    if os.path.isfile(output_file) and not force_render_images:
-        return output_file
-    
-    detections_to_render = []
-    
-    for det in im['detections']:
-        category_name = results_category_id_to_name[det['category']]
-        detection_threshold = rendering_confidence_thresholds['default']
-        if category_name in rendering_confidence_thresholds:
-            detection_threshold = rendering_confidence_thresholds[category_name]
-        if det['conf'] > detection_threshold:
-            detections_to_render.append(det)
-        
-    vis_utils.draw_bounding_boxes_on_file(input_file, output_file, detections_to_render,
-                                          detector_label_map=results_category_id_to_name,
-                                          label_font_size=20,target_size=target_image_size)
-    
-    return output_file
-
-
-if parallelize_rendering:
-    
-    if parallelize_rendering_n_cores is None:                
-        if parallelize_rendering_with_threads:
-            pool = ThreadPool()
-        else:
-            pool = Pool()
-    else:
-        if parallelize_rendering_with_threads:
-            pool = ThreadPool(parallelize_rendering_n_cores)
-            worker_string = 'threads'
-        else:
-            pool = Pool(parallelize_rendering_n_cores)
-            worker_string = 'processes'
-        print('Rendering images with {} {}'.format(parallelize_rendering_n_cores,
-                                                   worker_string))
-        
-    rendering_results = list(tqdm(pool.imap(render_image,md_results['images']),
-                                  total=len(md_results['images'])))        
-
-else:
-    
-    # im = md_results['images'][0]
-    for im in tqdm(md_results['images']):    
-        render_image(im)
-
-
-#%% Map images to predicted categories, and vice-versa
-
-filename_to_predicted_categories = defaultdict(set)
-predicted_category_name_to_filenames = defaultdict(set)
-
-# im = md_results['images'][0]
-for im in tqdm(md_results['images']):
-    
-    assert im['file'] in filename_to_ground_truth_im
-    
-    # det = im['detections'][0]
-    for det in im['detections']:
-        category_name = results_category_id_to_name[det['category']]
-        detection_threshold = confidence_thresholds['default']
-        if category_name in confidence_thresholds:
-            detection_threshold = confidence_thresholds[category_name]
-        if det['conf'] > detection_threshold:
-            filename_to_predicted_categories[im['file']].add(category_name)
-            predicted_category_name_to_filenames[category_name].add(im['file'])
-            
-    # ...for each detection
-
-# ...for each image
-
-
-##%% Create TP/TN/FP/FN lists
-
-category_name_to_image_lists = {}
-
-# These may not be identical; currently the ground truth contains an "unknown" category
-results_category_names = sorted(list(results_category_id_to_name.values()))
-
-sub_page_tokens = ['fn','tn','fp','tp']
-
-for category_name in ground_truth_category_names:
-    
-    category_name_to_image_lists[category_name] = {}
-    for sub_page_token in sub_page_tokens:
-        category_name_to_image_lists[category_name][sub_page_token] = []
-    
-# filename = next(iter(gt_filename_to_category_names))
-for filename in gt_filename_to_category_names.keys():
-    
-    ground_truth_categories_this_image = gt_filename_to_category_names[filename]
-    predicted_categories_this_image = filename_to_predicted_categories[filename]
-    
-    for category_name in ground_truth_category_names:
-        
-        assignment = None
-        
-        if category_name == 'empty':
-            # If this is an empty image
-            if category_name in ground_truth_categories_this_image:
-                assert len(ground_truth_categories_this_image) == 1
-                if len(predicted_categories_this_image) == 0:
-                    assignment = 'tp'
-                else:
-                    assignment = 'fn'
-            # This not an empty image
-            else:
-                if len(predicted_categories_this_image) == 0:
-                    assignment = 'fp'
-                else:
-                    assignment = 'tn'
-                
-        else:
-            if category_name in ground_truth_categories_this_image:
-                if category_name in predicted_categories_this_image:
-                    assignment = 'tp'
-                else:
-                    assignment = 'fn'
-            else:
-                if category_name in predicted_categories_this_image:
-                    assignment = 'fp'
-                else:
-                    assignment = 'tn'        
-                        
-        category_name_to_image_lists[category_name][assignment].append(filename)
-        
-# ...for each filename
-
-
-#%% Create confusion matrix
-
-n_categories = len(ground_truth_category_names)
-gt_category_name_to_category_index = {}
-
-for i_category,category_name in enumerate(ground_truth_category_names):
-    gt_category_name_to_category_index[category_name] = i_category    
-
-# indexed as [true,predicted]
-confusion_matrix = np.zeros(shape=(n_categories,n_categories),dtype=int)
-
-filename_to_results_im = {im['file']:im for im in md_results['images']}
-
-true_predicted_to_file_list = defaultdict(list)
-
-# filename = next(iter(gt_filename_to_category_names.keys()))
-for filename in gt_filename_to_category_names.keys():
-    
-    ground_truth_categories_this_image = gt_filename_to_category_names[filename]
-    assert len(ground_truth_categories_this_image) == 1
-    ground_truth_category_name = next(iter(ground_truth_categories_this_image))
-    
-    results_im = filename_to_results_im[filename]
-    
-    if len(results_im['detections']) == 0:
-        predicted_category_name = 'empty'
-    else:
-        # Find all above-threshold detections
-        results_category_name_to_confidence = defaultdict(int)
-        for det in results_im['detections']:
-            category_name = results_category_id_to_name[det['category']]
-            detection_threshold = rendering_confidence_thresholds['default']
-            if category_name in rendering_confidence_thresholds:
-                detection_threshold = confidence_thresholds[category_name]
-            if det['conf'] > detection_threshold:
-                results_category_name_to_confidence[category_name] = max(
-                    results_category_name_to_confidence[category_name],det['conf'])
-            # If there were no detections above threshold
-            if len(results_category_name_to_confidence) == 0:
-                predicted_category_name = 'empty'
-            else:
-                predicted_category_name = max(results_category_name_to_confidence,
-                    key=results_category_name_to_confidence.get)
-    
-    ground_truth_category_index = gt_category_name_to_category_index[ground_truth_category_name]
-    predicted_category_index = gt_category_name_to_category_index[predicted_category_name]
-    
-    true_predicted_token = ground_truth_category_name + '_' + predicted_category_name
-    true_predicted_to_file_list[true_predicted_token].append(filename)
-    
-    confusion_matrix[ground_truth_category_index,predicted_category_index] += 1
-
-plt.ioff()    
-
-fig_h = 3 + 0.3 * n_categories
-fig_w = fig_h
-fig = plt.figure(figsize=(fig_w, fig_h),tight_layout=True)
-    
-plot_utils.plot_confusion_matrix(
-    matrix=confusion_matrix,
-    classes=ground_truth_category_names,
-    normalize=False,
-    title='Confusion matrix',
-    cmap=plt.cm.Blues,
-    vmax=1.0,
-    use_colorbar=False,
-    y_label=True,
-    fig=fig)
-
-cm_figure_fn_relative = 'confusion_matrix.png'
-cm_figure_fn_abs = os.path.join(preview_folder, cm_figure_fn_relative)
-# fig.show()
-fig.savefig(cm_figure_fn_abs,dpi=100)
-plt.close(fig)
-
-# open_file(cm_figure_fn_abs)
-
-
-#%% Create HTML confusion matrix
-
-html_confusion_matrix = '<table class="result-table">\n'
-html_confusion_matrix += '<tr>\n'
-html_confusion_matrix += '<td>{}</td>\n'.format('True category')
-for category_name in ground_truth_category_names:
-    html_confusion_matrix += '<td>{}</td>\n'.format('&nbsp;')
-html_confusion_matrix += '</tr>\n'
-
-for true_category in ground_truth_category_names:
-    
-    html_confusion_matrix += '<tr>\n'
-    html_confusion_matrix += '<td>{}</td>\n'.format(true_category)
-    
-    for predicted_category in ground_truth_category_names:
-        
-        true_predicted_token = true_category + '_' + predicted_category
-        image_list = true_predicted_to_file_list[true_predicted_token]
-        if len(image_list) == 0:
-            td_content = '0'
-        else:
-            html_image_list_options = {}
-            title_string = 'true: {}, predicted {}'.format(
-                true_category,predicted_category)
-            html_image_list_options['headerHtml'] = '<h1>{}</h1>'.format(title_string)
-            
-            html_image_info_list = []
-            
-            for image_filename_relative in image_list:
-                html_image_info = {}
-                detections = filename_to_results_im[image_filename_relative]['detections']
-                if len(detections) == 0:
-                    max_conf = 0
-                else:
-                    max_conf = max([d['conf'] for d in detections])
-                
-                title = '<b>Image</b>: {}, <b>Max conf</b>: {:0.3f}'.format(
-                    image_filename_relative, max_conf)
-                image_link = 'images/' + os.path.basename(image_to_output_file(image_filename_relative))
-                html_image_info = {
-                    'filename': image_link,
-                    'title': title,
-                    'textStyle':\
-                     'font-family:verdana,arial,calibri;font-size:80%;' + \
-                         'text-align:left;margin-top:20;margin-bottom:5'
-                }                
-                
-                html_image_info_list.append(html_image_info)
-            
-            target_html_file_relative = true_predicted_token + '.html'
-            target_html_file_abs = os.path.join(preview_folder,target_html_file_relative)
-            write_html_image_list(
-                filename=target_html_file_abs,
-                images=html_image_info_list,
-                options=html_image_list_options)
-            
-            td_content = '<a href="{}">{}</a>'.format(target_html_file_relative,
-                                                      len(image_list))
-        
-        html_confusion_matrix += '<td>{}</td>\n'.format(td_content)
-    
-    # ...for each predicted category
-    
-    html_confusion_matrix += '</tr>\n'
-    
-# ...for each true category    
-
-html_confusion_matrix += '<tr>\n'
-html_confusion_matrix += '<td>&nbsp;</td>\n'
-
-for category_name in ground_truth_category_names:
-    html_confusion_matrix += '<td class="rotate"><p style="margin-left:20px;">{}</p></td>\n'.format(
-        category_name)
-html_confusion_matrix += '</tr>\n'
-
-html_confusion_matrix += '</table>'
-
-    
-##%% Create HTML sub-pages and HTML table
-
-html_table = '<table class="result-table">\n'
-
-html_table += '<tr>\n'
-html_table += '<td>{}</td>\n'.format('True category')
-for sub_page_token in sub_page_tokens:
-    html_table += '<td>{}</td>'.format(sub_page_token)
-html_table += '</tr>\n'
-    
-filename_to_results_im = {im['file']:im for im in md_results['images']}
-
-sub_page_token_to_page_name = {
-    'fp':'false positives',
-    'tp':'true positives',
-    'fn':'false negatives',
-    'tn':'true negatives'
-}
-
-# category_name = ground_truth_category_names[0]
-for category_name in ground_truth_category_names:
-    
-    html_table += '<tr>\n'
-    
-    html_table += '<td>{}</td>\n'.format(category_name)
-    
-    # sub_page_token = sub_page_tokens[0]
-    for sub_page_token in sub_page_tokens:
-        
-        html_table += '<td>\n'
-        
-        image_list = category_name_to_image_lists[category_name][sub_page_token]
-        
-        if len(image_list) == 0:
-            
-            html_table += '0\n'
-            
-        else:
-            
-            html_image_list_options = {}
-            title_string = '{}: {}'.format(category_name,sub_page_token_to_page_name[sub_page_token])
-            html_image_list_options['headerHtml'] = '<h1>{}</h1>'.format(title_string)
-            
-            target_html_file_relative = '{}_{}.html'.format(category_name,sub_page_token)
-            target_html_file_abs = os.path.join(preview_folder,target_html_file_relative)
-            
-            html_image_info_list = []
-            
-            # image_filename_relative = image_list[0]
-            for image_filename_relative in image_list:
-                
-                source_file = os.path.join(val_image_folder,image_filename_relative)
-                assert os.path.isfile(source_file)
-                
-                html_image_info = {}
-                detections = filename_to_results_im[image_filename_relative]['detections']
-                if len(detections) == 0:
-                    max_conf = 0
-                else:
-                    max_conf = max([d['conf'] for d in detections])
-                
-                title = '<b>Image</b>: {}, <b>Max conf</b>: {:0.3f}'.format(
-                    image_filename_relative, max_conf)
-                image_link = 'images/' + os.path.basename(image_to_output_file(image_filename_relative))
-                html_image_info = {
-                    'filename': image_link,
-                    'title': title,
-                    'linkTarget': source_file,
-                    'textStyle':\
-                     'font-family:verdana,arial,calibri;font-size:80%;' + \
-                         'text-align:left;margin-top:20;margin-bottom:5'
-                }                
-                
-                html_image_info_list.append(html_image_info)
-                
-            # ...for each image
-                
-            write_html_image_list(
-                filename=target_html_file_abs,
-                images=html_image_info_list,
-                options=html_image_list_options)
-
-            html_table += '<a href="{}">{}</a>\n'.format(target_html_file_relative,len(image_list))
-        
-        html_table += '</td>\n'
-
-    # ...for each sub-page
-        
-    html_table += '</tr>\n'
-
-# ...for each category
-    
-html_table += '</table>'        
-
-html = '<html>\n'
-
-style_header = """<head>
-    <style type="text/css">
-    a { text-decoration: none; }
-    body { font-family: segoe ui, calibri, "trebuchet ms", verdana, arial, sans-serif; }
-    div.contentdiv { margin-left: 20px; }
-    table.result-table { border:1px solid black; border-collapse: collapse; margin-left:50px;}
-    td,th { padding:10px; }
-    .rotate {    
-      padding:0px;
-      writing-mode:vertical-lr;
-      -webkit-transform: rotate(-180deg);        
-      -moz-transform: rotate(-180deg);            
-      -ms-transform: rotate(-180deg);         
-      -o-transform: rotate(-180deg);         
-      transform: rotate(-180deg);
-    }
-    </style>
-    </head>"""
-    
-html += style_header + '\n'
-
-html += '<body>\n'
-
-html += '<h1>Results summary for {}</h1>\n'.format(job_name)
-
-html += '<p><b>Model file</b>: {}</p>'.format(os.path.basename(model_file))
-
-html += '<p><b>Augmentation</b>: {}</p>'.format('enabled' if augment else 'disabled')
-
-html += '<p><b>Confidence thresholds</b></p>'
-
-for c in confidence_thresholds.keys():
-    html += '<p style="margin-left:15px;">{}: {}</p>'.format(c,confidence_thresholds[c])
-
-html += '<h2>Confusion matrix</h2>\n'
-
-html += '<p>...assuming a single category per image.</p>\n'
-
-html += '<img src="{}"/>\n'.format(cm_figure_fn_relative)
-
-html += '<h2>Confusion matrix (with links)</h2>\n'
-
-html += '<p>...assuming a single category per image.</p>\n'
-
-html += html_confusion_matrix
-
-html += '<h2>Per-class statistics</h2>\n'
-
-html += html_table
-
-html += '</body>\n'
-html += '<html>\n'
-
-target_html_file = os.path.join(preview_folder,'index.html')
-
-with open(target_html_file,'w') as f:
-    f.write(html)
-    
-open_file(target_html_file)
-# import clipboard; clipboard.copy(target_html_file)
+    model_info = candidate_models[model_name]
+    cm_info = model_info['confusion_matrix_results']
+    html_file = cm_info['html_file']
+    open_file(html_file,attempt_to_open_in_wsl_host=True)

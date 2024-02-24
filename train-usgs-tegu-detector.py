@@ -212,6 +212,8 @@ print('\nResume command:\n\n{}'.format(resume_command))
 
 #%% Back up models after (or during) training, removing optimizer state if appropriate
 
+raise ValueError('This is a reminder to self: add code to copy dataset.yaml the next time you run this cell')
+
 # Input folder(s)
 training_output_dir = os.path.join(project_dir,training_run_name)
 training_weights_dir = os.path.join(training_output_dir,'weights')
