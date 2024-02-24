@@ -28,14 +28,150 @@ import md_visualization.plot_utils as plot_utils
 from multiprocessing.pool import ThreadPool
 from multiprocessing.pool import Pool
 
-# YOLOv5 model
-if False:
-    model_file = os.path.expanduser('~/models/usgs-tegus/usgs-tegus-yolov5x-231003-b8-img1280-e3002-best.pt')
-    model_type = 'yolov5'
-    scratch_folder = os.path.expanduser('~/tmp/usgs-tegus-val-analysis')
-    confidence_thresholds = {'default':0.5,'tegu':0.45}
-    rendering_confidence_thresholds = {'default':0.3,'tegu':0.08}
-    job_name = 'USGS tegu val'
+candidate_models = {}
+
+candidate_models['default'] = {}
+candidate_models['default']['confidence_thresholds'] = {'default':0.5,'tegu':0.45}
+candidate_models['default']['rendering_confidence_thresholds'] = {'default':0.3,'tegu':0.08}
+candidate_models['default']['model_file'] = None
+
+model_base_folder = '/mnt/c/users/dmorr/models/usgs-tegus'
+assert os.path.isdir(model_base_folder)
+
+# classes_data_type
+
+model_name = 'all-classes_usgs-only_yolov5x6'
+candidate_models[model_name] = {}
+candidate_models[model_name]['model_file'] = \
+    os.path.join(model_base_folder,
+                 'usgs-tegus-yolov5x-231003-b8-img1280-e3002/weights/usgs-tegus-yolov5x-231003-b8-img1280-e3002-best-stripped.pt')
+candidate_models[model_name]['model_type'] = 'yolov5'
+
+model_name = 'all-classes_usgs-only_yolov8x'
+candidate_models[model_name] = {}
+candidate_models[model_name]['model_file'] = \
+    os.path.join(model_base_folder,
+                 'usgs-tegus-yolov8x-2023.10.26-b-1-img640-e300/weights/usgs-tegus-yolov8x-2023.10.26-b-1-img640-e300-best.pt')
+candidate_models[model_name]['model_type'] = 'yolov8'
+
+model_name = 'tegu-human_usgs-goannas-lilablanks_yolov5s'
+candidate_models[model_name] = {}
+candidate_models[model_name]['model_file'] = \
+    os.path.join(model_base_folder,
+                 'usgs-tegus-tegu_human_w_goanna_lilablanks-im448-e300-b128-yolov5s/weights/usgs-tegus-tegu_human_w_goanna_lilablanks-im448-e300-b128-yolov5s-best.pt')
+candidate_models[model_name]['model_type'] = 'yolov5'
+
+model_name = 'tegu-human_usgs-only_yolov5s'
+candidate_models[model_name] = {}
+candidate_models[model_name]['model_file'] = \
+    os.path.join(model_base_folder,
+                 'usgs-tegus-tegu_human-im448-e250-b64-yolov5s/weights/usgs-tegus-tegu_human-im448-e250-b64-yolov5s-best.pt')
+candidate_models[model_name]['model_type'] = 'yolov5'
+
+model_name = 'all-classes_usgs-lilablanks_yolov5x6'
+candidate_models[model_name] = {}
+candidate_models[model_name]['model_file'] = \
+    os.path.join(model_base_folder,
+                 'usgs-tegus-yolov5-lilablanks-20240205101724-b8-img1280-e3006/checkpoint-20240223/usgs-tegus-yolov5-lilablanks-20240205101724-b8-img1280-e3006-best-cp-20240223-stripped.pt')
+candidate_models[model_name]['model_type'] = 'yolov5'
+
+model_name = 'all-classes_usgs-goannas-lilablanks_yolov5x6'
+candidate_models[model_name] = {}
+candidate_models[model_name]['model_file'] = \
+    os.path.join(model_base_folder,
+                 'usgs-tegus-yolov5-lilablanks_goannas-20240205105940-b8-img1280-e3003/checkpoint-20240223/usgs-tegus-yolov5-lilablanks_goannas-20240205105940-b8-img1280-e3003-best-cp-20240223-stripped.pt')    
+candidate_models[model_name]['model_type'] = 'yolov5'
+
+model_filenames = set()
+
+for model_name in candidate_models.keys():
+    if model_name == 'default':
+        continue
+
+    model_info = candidate_models[model_name]
+    
+    model_filename = model_info['model_file']
+    assert '\\' not in model_filename
+    assert 'last' not in model_filename
+    assert model_filename not in model_filenames
+    model_filenames.add(model_filename)
+    
+    assert os.path.isfile(model_info['model_file'])
+    assert model_info['model_type'] in model_info['model_file']
+    if 'confidence_thresholds' not in model_info:
+        model_info['confidence_thresholds'] = \
+            candidate_models['default']['confidence_thresholds']
+    if 'rendering_confidence_thresholds' not in model_info:
+        model_info['rendering_confidence_thresholds'] = \
+            candidate_models['default']['rendering_confidence_thresholds']
+
+
+#%% Convert YOLO to COCO
+
+data_folder = os.path.expanduser('~/data/usgs-tegus/usgs-kissel-training-yolo-1600-usgs-only')
+assert os.path.isdir(data_folder)
+val_folder = os.path.join(data_folder,'val')
+assert os.path.isdir(val_folder)
+
+val_file_coco = os.path.join(data_folder,'dataset-val-converted-from-yolo.json')
+
+from data_management.yolo_to_coco import yolo_to_coco
+
+_ = yolo_to_coco(input_folder = val_folder,
+                 class_name_file = os.path.join(data_folder,'dataset.yaml'),
+                 output_file = val_file_coco)
+
+with open(val_file_coco,'r') as f:
+    d = json.load(f)
+
+for im in d['images']:
+    assert '/' not in im['file_name'] and '/' not in im['id']
+    im['file_name'] = 'val/' + im['file_name']
+    im['id'] = 'val/' + im['id']
+    
+with open(val_file_coco,'w') as f:
+    json.dump(d,f,indent=1)
+    
+    
+#%% Compare to the expected COCO file
+
+with open(val_file_coco,'r') as f:
+    d_converted_from_coco = json.load(f)
+
+expected_val_file_coco = os.path.join(data_folder,'usgs-kissel-training-resized-val.json')
+with open(expected_val_file_coco,'r') as f:
+    d_expected = json.load(f)
+
+converted_images = sorted([im['file_name'] for im in d_converted_from_coco['images']])
+converted_images = [os.path.splitext(fn)[0] for fn in converted_images]
+converted_images = ['_'.join(fn.split('_')[0:-1]) for fn in converted_images]
+converted_images = [fn.replace('/','#') for fn in converted_images]
+converted_images_set = set(converted_images)
+
+expected_images = sorted([im['file_name'] for im in d_expected['images']])
+expected_images = [fn.replace('val/','val/val#').replace('/','#') for fn in expected_images]
+expected_images = [os.path.splitext(fn)[0] for fn in expected_images]
+
+images_missing_from_yolo_set = []
+for expected_image_fn in expected_images:
+    if expected_image_fn not in converted_images_set:
+        images_missing_from_yolo_set.append(expected_image_fn)
+
+images_missing_from_yolo_set = sorted(images_missing_from_yolo_set)
+
+print('{} of {} images are missing from the YOLO set'.format(
+    len(images_missing_from_yolo_set),len(d_expected['images'])))
+
+for fn in images_missing_from_yolo_set:
+    assert 'blanks_and_very_small_things' in fn or 'other' in fn or 'unknown' in fn
+
+if False:    
+    assert len(d_expected['images']) == len(d_converted_from_coco['images'])
+    d_expected['images'][0]
+    d_converted_from_coco['images'][0]
+
+
+#%%
 
 # YOLOv8 model:
 if True:

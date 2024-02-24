@@ -104,12 +104,7 @@ This happens in [add-lila-blanks.py](add-lila-blanks.py).  Blanks are originally
 
 ### Train
 
-Training (using MDv5 as a starting point) happens at the CLI, but [train-usgs-tegu-detector.py](train-usgs-tegu-detector.py) tracks all the commands used to train, and also contains cells that:
-
-* Run the YOLOv5 validation scripts
-* Convert YOLOv5 val results to MD .json format
-* Use the MD visualization pipeline to visualize results
-* Use the MD inference pipeline to run the trained model
+Training (using MDv5 as a starting point) happens at the CLI, but [train-usgs-tegu-detector.py](train-usgs-tegu-detector.py) tracks all the commands used to train.
 
 
 ### Postprocess and review results
@@ -129,4 +124,3 @@ Training (using MDv5 as a starting point) happens at the CLI, but [train-usgs-te
 * Hyperparameter optimization, in particular try freezing some layers during YOLOv8 training
 * This is mostly a curiosity, but... it's unknown how much training benefits from using MD as a starting point; compare to training YOLOv5x6 from a COCO-trained starting point
 * Maybe this whole approach is overkill; try training an image classifier rather than a detector
-

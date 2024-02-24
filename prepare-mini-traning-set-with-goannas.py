@@ -157,8 +157,8 @@ patience = 50
 cache = False
 base_weights = 'yolov5s.pt'
 project = os.path.expanduser('~/tmp/usgs-tegus/yolov5-mini-training')
-training_run_name = 'usgs-tegus-tegu_human_w_goanna_lilablanks-im{}-e{}-b{}'.format(
-    training_image_size,epochs,batch_size)
+training_run_name = 'usgs-tegus-tegu_human_w_goanna_lilablanks-im{}-e{}-b{}-{}'.format(
+    training_image_size,epochs,batch_size,base_weights.split('.')[0])
 
 use_ddp = True
 if use_ddp:
