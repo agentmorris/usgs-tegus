@@ -212,8 +212,6 @@ print('\nResume command:\n\n{}'.format(resume_command))
 
 #%% Back up models after (or during) training, removing optimizer state if appropriate
 
-raise ValueError('This is a reminder to self: add code to copy dataset.yaml the next time you run this cell')
-
 # Input folder(s)
 training_output_dir = os.path.join(project_dir,training_run_name)
 training_weights_dir = os.path.join(training_output_dir,'weights')
@@ -226,6 +224,7 @@ assert checkpoint_tag != 'unknown'
 model_folder = os.path.join(model_folder,'checkpoint-' + checkpoint_tag)
 os.makedirs(model_folder,exist_ok=True)
 
+# weight_name = 'last'
 for weight_name in ('last','best'):
     source_file = os.path.join(training_weights_dir,weight_name + '.pt')
     assert os.path.isfile(source_file)
@@ -235,6 +234,10 @@ for weight_name in ('last','best'):
     shutil.copyfile(source_file,target_file)
     target_file_optimizer_stripped = target_file.replace('.pt','-stripped.pt')
     strip_optimizer(target_file,target_file_optimizer_stripped)
+    
+# Copy dataset.yaml    
+target_dataset_file = os.path.join(model_folder,os.path.basename(yolo_dataset_file))
+shutil.copyfile(yolo_dataset_file,target_dataset_file)
 
 other_files = os.listdir(training_output_dir)
 other_files = [os.path.join(training_output_dir,fn) for fn in other_files]

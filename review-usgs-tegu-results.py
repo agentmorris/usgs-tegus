@@ -61,11 +61,13 @@ augment = False
 candidate_models = {}
 
 candidate_models['default'] = {}
-candidate_models['default']['confidence_thresholds'] = {'default':0.5,'tegu':0.38}
+candidate_models['default']['confidence_thresholds'] = {'default':0.5,'tegu':0.45}
 candidate_models['default']['rendering_confidence_thresholds'] = {'default':0.05,'tegu':0.05}
 candidate_models['default']['model_file'] = None
 
-model_base_folder = '/mnt/c/users/dmorr/models/usgs-tegus'
+# model_base_folder = '/mnt/c/users/dmorr/models/usgs-tegus'
+# model_base_folder = os.path.expanduser('~/models/usgs-tegus')
+model_base_folder = None
 assert os.path.isdir(model_base_folder)
 
 # classes_data_type
@@ -285,6 +287,9 @@ for im in tqdm(d['images']):
 
 #%% Run each model on the validation data
 
+# mamba activate yolov5
+# export PYTHONPATH=/home/user/git/MegaDetector
+
 yolo_working_folder = os.path.expanduser('~/git/yolov5-training')
 
 gpu_to_commands = defaultdict(list)
@@ -446,4 +451,4 @@ for model_name in model_names:
     model_info = candidate_models[model_name]
     cm_info = model_info['confusion_matrix_results']
     html_file = cm_info['html_file']
-    open_file(html_file,attempt_to_open_in_wsl_host=True)
+    open_file(html_file,attempt_to_open_in_wsl_host=True,browser_name='chrome')
