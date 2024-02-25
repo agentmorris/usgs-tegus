@@ -61,7 +61,7 @@ augment = False
 candidate_models = {}
 
 candidate_models['default'] = {}
-candidate_models['default']['confidence_thresholds'] = {'default':0.5,'tegu':0.38}
+candidate_models['default']['confidence_thresholds'] = {'default':0.5,'tegu':0.45}
 candidate_models['default']['rendering_confidence_thresholds'] = {'default':0.05,'tegu':0.05}
 candidate_models['default']['model_file'] = None
 
@@ -85,6 +85,7 @@ candidate_models[model_name]['model_file'] = \
                  'usgs-tegus-yolov8x-2023.10.26-b-1-img640-e300/weights/usgs-tegus-yolov8x-2023.10.26-b-1-img640-e300-best.pt')
 candidate_models[model_name]['image_size'] = 640
 candidate_models[model_name]['model_type'] = 'yolov8'
+candidate_models[model_name]['confidence_thresholds'] = {'default':0.5,'tegu':0.25}
 
 model_name = 'tegu-human_usgs-goannas-lilablanks_yolov5s'
 candidate_models[model_name] = {}
@@ -118,6 +119,7 @@ candidate_models[model_name]['model_file'] = \
     os.path.join(model_base_folder,
                  'usgs-tegus-yolov5-lilablanks_goannas-20240205105940-b8-img1280-e3003/checkpoint-20240223/usgs-tegus-yolov5-lilablanks_goannas-20240205105940-b8-img1280-e3003-best-cp-20240223-stripped.pt')    
 candidate_models[model_name]['image_size'] = 1280    
+candidate_models[model_name]['confidence_thresholds'] = {'default':0.5,'tegu':0.475}
 candidate_models[model_name]['model_type'] = 'yolov5'
 
 model_filenames = set()
@@ -409,7 +411,7 @@ from api.batch_processing.postprocessing.render_detection_confusion_matrix \
 html_image_list_options = {'maxFiguresPerHtmlFile':3000}
 target_image_size = (1280,-1)
 
-# model_name = model_names[0]
+# model_name = model_names[1]
 for model_name in model_names:
     
     model_info = candidate_models[model_name]
@@ -439,9 +441,6 @@ for model_name in model_names:
 
 # model_name = model_names[0]
 for model_name in model_names:
-    
-    if 'all-classes' not in model_name or 'yolov5s' in model_name:
-        continue
     
     model_info = candidate_models[model_name]
     cm_info = model_info['confusion_matrix_results']
