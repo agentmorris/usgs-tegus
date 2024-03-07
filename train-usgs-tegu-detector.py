@@ -108,6 +108,8 @@ batch_size = 8
 image_size = 1280
 epochs = 300
 device_string = '0,1'
+use_ddp = True
+patience = 50 # defaults to 100
 
 dt = datetime.datetime.now()
 dt_string = '{}{}{}{}{}{}'.format(dt.year,str(dt.month).zfill(2),str(dt.day).zfill(2),
@@ -137,13 +139,13 @@ if os.path.exists(run_dir):
         run_dir))
 
 # See https://docs.ultralytics.com/yolov5/tutorials/multi_gpu_training/
-use_ddp = True
 if use_ddp:
     base_train_command = 'python -m torch.distributed.run --nproc_per_node 2 train.py'
 else:
     base_train_command = 'python train.py'    
 
-train_cmd = f'{base_train_command} --img {image_size} --batch {batch_size} --epochs {epochs} --weights "{base_model}" --device {device_string} --project "{project_dir}" --name "{training_run_name}" --data "{yolo_dataset_file}"'
+
+train_cmd = f'{base_train_command} --img {image_size} --batch {batch_size} --epochs {epochs} --weights "{base_model}" --device {device_string} --project "{project_dir}" --name "{training_run_name}" --data "{yolo_dataset_file}" --patience "{patience}"'
 print('Training command:\n')
 print(train_cmd)
 # clipboard.copy(train_cmd)
@@ -220,7 +222,7 @@ assert os.path.isdir(training_weights_dir)
 # Output folder
 model_folder = os.path.expanduser('~/models/usgs-tegus/{}'.format(training_run_name))
 checkpoint_tag = 'unknown'
-assert checkpoint_tag != 'unknown'
+assert checkpoint_tag != 'unknown' # 20240000
 model_folder = os.path.join(model_folder,'checkpoint-' + checkpoint_tag)
 os.makedirs(model_folder,exist_ok=True)
 

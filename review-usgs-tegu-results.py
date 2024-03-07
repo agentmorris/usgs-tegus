@@ -65,12 +65,14 @@ candidate_models['default']['confidence_thresholds'] = {'default':0.5,'tegu':0.4
 candidate_models['default']['rendering_confidence_thresholds'] = {'default':0.05,'tegu':0.05}
 candidate_models['default']['model_file'] = None
 
-# model_base_folder = '/mnt/c/users/dmorr/models/usgs-tegus'
+model_base_folder = '/mnt/c/users/dmorr/models/usgs-tegus'
 # model_base_folder = os.path.expanduser('~/models/usgs-tegus')
-model_base_folder = None
+# model_base_folder = None
 assert os.path.isdir(model_base_folder)
 
 # classes_data_type
+
+## USGS-only yolov5x6
 
 model_name = 'all-classes_usgs-only_yolov5x6'
 candidate_models[model_name] = {}
@@ -80,6 +82,8 @@ candidate_models[model_name]['model_file'] = \
 candidate_models[model_name]['image_size'] = 1280
 candidate_models[model_name]['model_type'] = 'yolov5'
 
+## USGS-only yolov8
+
 model_name = 'all-classes_usgs-only_yolov8x'
 candidate_models[model_name] = {}
 candidate_models[model_name]['model_file'] = \
@@ -88,6 +92,8 @@ candidate_models[model_name]['model_file'] = \
 candidate_models[model_name]['image_size'] = 640
 candidate_models[model_name]['model_type'] = 'yolov8'
 candidate_models[model_name]['confidence_thresholds'] = {'default':0.5,'tegu':0.25}
+
+## yolov5s models
 
 model_name = 'tegu-human_usgs-goannas-lilablanks_yolov5s'
 candidate_models[model_name] = {}
@@ -107,7 +113,9 @@ candidate_models[model_name]['image_size'] = 448
 candidate_models[model_name]['confidence_thresholds'] = {'default':0.1,'tegu':0.05}
 candidate_models[model_name]['model_type'] = 'yolov5'
 
-model_name = 'all-classes_usgs-lilablanks_yolov5x6'
+## lilablanks
+
+model_name = 'all-classes_usgs-lilablanks_yolov5x6-20240223'
 candidate_models[model_name] = {}
 candidate_models[model_name]['model_file'] = \
     os.path.join(model_base_folder,
@@ -115,7 +123,17 @@ candidate_models[model_name]['model_file'] = \
 candidate_models[model_name]['image_size'] = 1280
 candidate_models[model_name]['model_type'] = 'yolov5'
 
-model_name = 'all-classes_usgs-goannas-lilablanks_yolov5x6'
+model_name = 'all-classes_usgs-lilablanks_yolov5x6-20240306'
+candidate_models[model_name] = {}
+candidate_models[model_name]['model_file'] = \
+    os.path.join(model_base_folder,
+                 'usgs-tegus-yolov5-lilablanks-20240205101724-b8-img1280-e3006/checkpoint-20240306/usgs-tegus-yolov5-lilablanks-20240205101724-b8-img1280-e3006-best-cp-20240306-stripped.pt')
+candidate_models[model_name]['image_size'] = 1280
+candidate_models[model_name]['model_type'] = 'yolov5'
+
+## goannas+lilablanks
+
+model_name = 'all-classes_usgs-goannas-lilablanks_yolov5x6-20240223'
 candidate_models[model_name] = {}
 candidate_models[model_name]['model_file'] = \
     os.path.join(model_base_folder,
@@ -123,6 +141,16 @@ candidate_models[model_name]['model_file'] = \
 candidate_models[model_name]['image_size'] = 1280    
 candidate_models[model_name]['confidence_thresholds'] = {'default':0.5,'tegu':0.475}
 candidate_models[model_name]['model_type'] = 'yolov5'
+
+model_name = 'all-classes_usgs-goannas-lilablanks_yolov5x6-20240306'
+candidate_models[model_name] = {}
+candidate_models[model_name]['model_file'] = \
+    os.path.join(model_base_folder,
+                 'usgs-tegus-yolov5-lilablanks_goannas-20240205105940-b8-img1280-e3003/checkpoint-20240306/usgs-tegus-yolov5-lilablanks_goannas-20240205105940-b8-img1280-e3003-best-cp-20240306-stripped.pt')
+candidate_models[model_name]['image_size'] = 1280    
+candidate_models[model_name]['confidence_thresholds'] = {'default':0.5,'tegu':0.475}
+candidate_models[model_name]['model_type'] = 'yolov5'
+
 
 model_filenames = set()
 
@@ -193,38 +221,35 @@ for model_name in model_names:
 
 #%% YOLO --> COCO conversion (if necessary)
 
-if False:
-    
-    #%% Convert YOLO val ground truth to COCO
+force_yolo_to_coco_conversion = False
 
-    val_file_coco = os.path.join(data_folder,'dataset-val-converted-from-yolo.json')    
+val_file_coco_from_yolo = os.path.join(data_folder,'dataset-val-converted-from-yolo.json')    
+
+if force_yolo_to_coco_conversion:
     
     from data_management.yolo_to_coco import yolo_to_coco
     
     _ = yolo_to_coco(input_folder = val_folder,
                      class_name_file = os.path.join(data_folder,'dataset.yaml'),
-                     output_file = val_file_coco,
+                     output_file = val_file_coco_from_yolo,
                      empty_image_handling = 'empty_annotations')
     
-    with open(val_file_coco,'r') as f:
-        d = json.load(f)
+else:
     
-    with open(val_file_coco,'w') as f:
-        json.dump(d,f,indent=1)
-
-
+    assert os.path.isfile(val_file_coco_from_yolo)
+    
+    
 #%% Create val-only json file
 
-if False:
+force_val_only_json_file_creation = False
+
+ground_truth_file = os.path.expanduser('~/data/usgs-tegus/usgs-kissel-training/usgs-kissel-training.json')
+val_file_coco = ground_truth_file.replace('.json','-val-only.json')
+
+if force_val_only_json_file_creation:
     
-    pass
-
-    #%%
-
-    ground_truth_file = os.path.expanduser('~/data/usgs-tegus/usgs-kissel-training/usgs-kissel-training.json')
     assert os.path.isfile(ground_truth_file)
     
-    val_file_coco = ground_truth_file.replace('.json','-val-only.json')
     with open(ground_truth_file,'r') as f:
         d = json.load(f)
         
@@ -255,6 +280,10 @@ if False:
     with open(val_file_coco,'w') as f:
         json.dump(d,f,indent=1)
 
+else:
+    
+    assert os.path.isfile(val_file_coco)
+    
     
 #%% Validate ground truth data
 
@@ -396,17 +425,25 @@ for model_name in model_names:
 
 val_file_coco_no_val_folder = val_file_coco.replace('.json','_no_val_folder.json')
 
-with open(val_file_coco,'r') as f:
-    d = json.load(f)
+force_val_folder_removal = False
 
-for im in d['images']:
-    assert im['file_name'].startswith('val/')
-    im['file_name'] = im['file_name'].replace('val/','',1)
-    assert 'val/' not in im['file_name']
-
-with open(val_file_coco_no_val_folder,'w') as f:
-    json.dump(d,f,indent=1)
+if force_val_folder_removal:
     
+    with open(val_file_coco,'r') as f:
+        d = json.load(f)
+    
+    for im in d['images']:
+        assert im['file_name'].startswith('val/')
+        im['file_name'] = im['file_name'].replace('val/','',1)
+        assert 'val/' not in im['file_name']
+    
+    with open(val_file_coco_no_val_folder,'w') as f:
+        json.dump(d,f,indent=1)
+
+else:
+
+    assert os.path.isfile(val_file_coco_no_val_folder)    
+
     
 #%% Render confusion matrices for each model
 
@@ -416,8 +453,11 @@ from api.batch_processing.postprocessing.render_detection_confusion_matrix \
 html_image_list_options = {'maxFiguresPerHtmlFile':3000}
 target_image_size = (1280,-1)
 
-# model_name = model_names[1]
-for model_name in model_names:
+# i_model = 1; model_name = model_names[i_model]
+for i_model,model_name in enumerate(model_names):
+
+    print('Processing results from model {} of {}'.format(
+        i_model,len(model_names)))
     
     model_info = candidate_models[model_name]
 
@@ -441,7 +481,9 @@ for model_name in model_names:
 
     model_info['confusion_matrix_results'] = confusion_matrix_results
     
-    
+# ...for each model
+
+
 #%% Open results
 
 # model_name = model_names[0]
@@ -451,3 +493,12 @@ for model_name in model_names:
     cm_info = model_info['confusion_matrix_results']
     html_file = cm_info['html_file']
     open_file(html_file,attempt_to_open_in_wsl_host=True,browser_name='chrome')
+
+
+#%% Zip model files
+
+from md_utils.path_utils import parallel_zip_files
+
+model_files = [m['model_file'] for m in candidate_models.values() if m['model_file'] is not None]
+    
+parallel_zip_files(model_files, use_threads=False)
