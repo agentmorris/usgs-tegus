@@ -62,7 +62,7 @@ candidate_models = {}
 
 candidate_models['default'] = {}
 candidate_models['default']['confidence_thresholds'] = {'default':0.5,'tegu':0.45}
-candidate_models['default']['rendering_confidence_thresholds'] = {'default':0.05,'tegu':0.05}
+candidate_models['default']['rendering_confidence_thresholds'] = {'default':0.4,'tegu':0.05}
 candidate_models['default']['model_file'] = None
 
 model_base_folder = '/mnt/c/users/dmorr/models/usgs-tegus'
@@ -131,6 +131,15 @@ candidate_models[model_name]['model_file'] = \
 candidate_models[model_name]['image_size'] = 1280
 candidate_models[model_name]['model_type'] = 'yolov5'
 
+model_name = 'all-classes_usgs-lilablanks_yolov5x6-20240317-training-complete'
+candidate_models[model_name] = {}
+candidate_models[model_name]['model_file'] = \
+    os.path.join(model_base_folder,
+                 'usgs-tegus-yolov5-lilablanks-20240205101724-b8-img1280-e3006/checkpoint-training-complete-20230317/usgs-tegus-yolov5-lilablanks-20240205101724-b8-img1280-e3006-best-cp-training-complete-20230317-stripped.pt')
+candidate_models[model_name]['image_size'] = 1280
+candidate_models[model_name]['model_type'] = 'yolov5'
+
+
 ## goannas+lilablanks
 
 model_name = 'all-classes_usgs-goannas-lilablanks_yolov5x6-20240223'
@@ -151,27 +160,44 @@ candidate_models[model_name]['image_size'] = 1280
 candidate_models[model_name]['confidence_thresholds'] = {'default':0.5,'tegu':0.475}
 candidate_models[model_name]['model_type'] = 'yolov5'
 
+model_name = 'all-classes_usgs-goannas-lilablanks_yolov5x6-20240317-training-complete'
+candidate_models[model_name] = {}
+candidate_models[model_name]['model_file'] = \
+    os.path.join(model_base_folder,
+                 'usgs-tegus-yolov5-lilablanks_goannas-20240205105940-b8-img1280-e3003/checkpoint-training-complete-20240317/usgs-tegus-yolov5-lilablanks_goannas-20240205105940-b8-img1280-e3003-best-cp-training-complete-20240317-stripped.pt')
+candidate_models[model_name]['image_size'] = 1280    
+candidate_models[model_name]['confidence_thresholds'] = {'default':0.5,'tegu':0.45}
+candidate_models[model_name]['model_type'] = 'yolov5'
 
 model_filenames = set()
 
-for model_name in candidate_models.keys():
+
+#%% Fill in default information for each model
+
+def fill_defaults(model_name):
     
     if model_name == 'default':
-        continue
+        return
 
     model_info = candidate_models[model_name]
     
-    results_file = os.path.join(results_base_folder,model_name + '.json')
-    model_info['results_file'] = results_file
+    if 'results_file' not in model_info:
+        results_file = os.path.join(results_base_folder,model_name + '.json')
+        model_info['results_file'] = results_file
     
-    model_filename = model_info['model_file']
-    assert '\\' not in model_filename
-    assert 'last' not in model_filename
-    assert model_filename not in model_filenames
-    model_filenames.add(model_filename)
+    model_type = model_info['model_type']
     
-    assert os.path.isfile(model_info['model_file'])
-    assert model_info['model_type'] in model_info['model_file']
+    if model_type is not None and model_type != 'synthetic':
+        
+        model_filename = model_info['model_file']
+        assert '\\' not in model_filename
+        assert 'last' not in model_filename
+        assert model_filename not in model_filenames
+        model_filenames.add(model_filename)
+        
+        assert os.path.isfile(model_info['model_file'])
+        assert model_type in model_info['model_file']
+        
     if 'confidence_thresholds' not in model_info:
         model_info['confidence_thresholds'] = \
             candidate_models['default']['confidence_thresholds']
@@ -179,10 +205,15 @@ for model_name in candidate_models.keys():
         model_info['rendering_confidence_thresholds'] = \
             candidate_models['default']['rendering_confidence_thresholds']
 
-    dataset_file_name = os.path.join(os.path.dirname(model_filename),'dataset.yaml')
-    assert os.path.isfile(dataset_file_name)
+    if 'dataset_file' not in model_info:
+        dataset_file_name = os.path.join(os.path.dirname(model_filename),'dataset.yaml')
+        model_info['dataset_file'] = dataset_file_name
+        
+    assert os.path.isfile(model_info['dataset_file'])
+
     
-    model_info['dataset_file'] = dataset_file_name
+for model_name in candidate_models.keys():    
+    fill_defaults(model_name)
     
 model_names = [s for s in candidate_models.keys() if s != 'default']
 
@@ -216,7 +247,6 @@ for model_name in model_names:
     
     yolo_dataset_file = model_info['dataset_file']
     assert os.path.isfile(yolo_dataset_file) and yolo_dataset_file.endswith('.yaml')
-    
 
 
 #%% YOLO --> COCO conversion (if necessary)
@@ -236,7 +266,8 @@ if force_yolo_to_coco_conversion:
     
 else:
     
-    assert os.path.isfile(val_file_coco_from_yolo)
+    pass
+    # assert os.path.isfile(val_file_coco_from_yolo)
     
     
 #%% Create val-only json file
@@ -319,6 +350,7 @@ for im in tqdm(d['images']):
 #%% Run each model on the validation data
 
 # mamba activate yolov5
+# export PYTHONPATH=/mnt/c/git/MegaDetector
 # export PYTHONPATH=/home/user/git/MegaDetector
 
 yolo_working_folder = os.path.expanduser('~/git/yolov5-training')
@@ -444,7 +476,84 @@ else:
 
     assert os.path.isfile(val_file_coco_no_val_folder)    
 
+
+#%% Merge the best results
+
+from api.batch_processing.postprocessing.merge_detections import \
+    MergeDetectionsOptions, merge_detections
     
+merge_options = MergeDetectionsOptions()
+
+merge_options.source_confidence_thresholds = [0.05]
+
+# We'd rather have redundant detections in this case
+merge_options.target_confidence_threshold = 0.9
+
+merge_options.categories_to_include = None
+merge_options.merge_empty_only = False
+merge_options.iou_threshold = 0.65
+merge_options.overwrite = True
+
+target_model_name_for_merging = 'all-classes_usgs-only_yolov5x6'
+source_model_name_for_merging = 'all-classes_usgs-goannas-lilablanks_yolov5x6-20240223'    
+
+target_results_file = candidate_models[target_model_name_for_merging]['results_file']
+source_results_file = candidate_models[source_model_name_for_merging]['results_file']
+
+with open(source_results_file,'r') as f:
+    source_d = json.load(f)
+
+with open(target_results_file,'r') as f:
+    target_d = json.load(f)
+
+remapping_required = \
+    (source_d['detection_categories'] != target_d['detection_categories'])
+
+if remapping_required:
+    
+    # If the two best results sets use slightly different categories, remap
+    remapped_source_file = source_results_file.replace('.json','_remapped.json')
+    assert remapped_source_file != source_results_file
+    
+    from api.batch_processing.postprocessing.remap_detection_categories import \
+        remap_detection_categories
+    
+    remap_detection_categories(input_file=source_results_file,
+                               output_file=remapped_source_file,
+                               target_category_map=target_results_file,
+                               extra_category_handling='drop_if_unused',
+                               overwrite=False)
+
+    source_results_file = remapped_source_file
+    with open(source_results_file,'r') as f:
+        source_d = json.load(f)
+    assert source_d['detection_categories'] == target_d['detection_categories']
+        
+merged_results_file = os.path.join(results_base_folder,'merged_detections_00.json')
+
+merge_detections(source_files=[source_results_file],
+                 target_file=target_results_file,
+                 output_file=merged_results_file,
+                 options=merge_options)
+
+
+#%% Create a new entry in the model list for this case
+
+model_name = 'all-classes_merged_results'
+target_model_dataset_yaml_file = candidate_models[target_model_name_for_merging]['dataset_file']
+
+candidate_models[model_name] = {}
+candidate_models[model_name]['model_file'] = 'merged results from multiple files'
+candidate_models[model_name]['results_file'] = merged_results_file
+candidate_models[model_name]['image_size'] = 1280    
+candidate_models[model_name]['confidence_thresholds'] = {'default':0.5,'tegu':0.6}
+candidate_models[model_name]['model_type'] = 'synthetic'
+candidate_models[model_name]['dataset_file'] = target_model_dataset_yaml_file
+fill_defaults(model_name)
+
+model_names = [s for s in candidate_models.keys() if s != 'default']
+
+
 #%% Render confusion matrices for each model
 
 from api.batch_processing.postprocessing.render_detection_confusion_matrix \
@@ -452,8 +561,12 @@ from api.batch_processing.postprocessing.render_detection_confusion_matrix \
     
 html_image_list_options = {'maxFiguresPerHtmlFile':3000}
 target_image_size = (1280,-1)
+force_render_images = True
 
-# i_model = 1; model_name = model_names[i_model]
+# i_model = -1; model_name = model_names[i_model]
+#
+# model_name = 'all-classes_usgs-goannas-lilablanks_yolov5x6-20240317-training-complete'
+# i_model = model_names.index(model_name)
 for i_model,model_name in enumerate(model_names):
 
     print('Processing results from model {} of {}'.format(
@@ -467,7 +580,7 @@ for i_model,model_name in enumerate(model_names):
         results_file=model_info['results_file'],
         image_folder=val_folder,
         preview_folder=preview_folder,
-        force_render_images=False, 
+        force_render_images=force_render_images, 
         confidence_thresholds=model_info['confidence_thresholds'],
         rendering_confidence_thresholds=model_info['rendering_confidence_thresholds'],
         target_image_size=target_image_size,
@@ -486,9 +599,9 @@ for i_model,model_name in enumerate(model_names):
 
 #%% Open results
 
-# model_name = model_names[0]
+# model_name = model_names[-1]
 for model_name in model_names:
-    
+
     model_info = candidate_models[model_name]
     cm_info = model_info['confusion_matrix_results']
     html_file = cm_info['html_file']
@@ -500,5 +613,6 @@ for model_name in model_names:
 from md_utils.path_utils import parallel_zip_files
 
 model_files = [m['model_file'] for m in candidate_models.values() if m['model_file'] is not None]
+model_files = [fn for fn in model_files if os.path.isfile(fn)]
     
 parallel_zip_files(model_files, use_threads=False)

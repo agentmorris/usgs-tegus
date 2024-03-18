@@ -221,8 +221,8 @@ assert os.path.isdir(training_weights_dir)
 
 # Output folder
 model_folder = os.path.expanduser('~/models/usgs-tegus/{}'.format(training_run_name))
-checkpoint_tag = 'unknown'
-assert checkpoint_tag != 'unknown' # 20240000
+checkpoint_tag = 'training-complete-20240317' # 20240000
+assert checkpoint_tag != 'unknown' 
 model_folder = os.path.join(model_folder,'checkpoint-' + checkpoint_tag)
 os.makedirs(model_folder,exist_ok=True)
 
