@@ -197,12 +197,5 @@ python postprocess_batch_results.py [OUTPUT_FILE] [OUTPUT_DIR] --image_base_dir 
 * IMAGE_FOLDER is the same image folder you specified in the previous step
 * OUTPUT_FILE is the .json file you created in the previous step
 * OUTPUT_DIR is a folder in which you want to create an HTML preview
+```
 
-## TODOs 
-
-* Since we're mostly interested in tegus, experiment with resampling the training data to reduce the number of raccoons and crows
-* Combine the YOLOv5 and YOLOv8 outputs to maximize tegu F1
-* Include other large-reptile datasets, likely lumping other reptiles (e.g. goannas) into the "tegu" class
-* Hyperparameter optimization, in particular try freezing some layers during YOLOv8 training
-* This is mostly a curiosity, but... it's unknown how much training benefits from using MD as a starting point; compare to training YOLOv5x6 from a COCO-trained starting point
-* Maybe this whole approach is overkill; try training an image classifier rather than a detector
