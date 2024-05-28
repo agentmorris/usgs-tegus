@@ -6,7 +6,7 @@ The code in this repo trains, runs, and evaluates models to detect wildlife in c
 
 <img src="tegu-image.jpg" style="width:600px;">
 
-## Important steps/files
+## Training the model
 
 These are listed in roughly the order in which you would use them.
 
@@ -115,6 +115,85 @@ Training (using MDv5 as a starting point) happens at the CLI, but [train-usgs-te
 * Renders detections onto thumbnail images
 * Generates confusion matrices and HTML preview pages to present the results
 
+## Running the model
+
+### Environment setup
+
+#### Install prerequisites: Mambaforge, Git, and NVIDIA stuff
+
+Install prerequisites according to the [MegaDetector instructions for prerequisite setup](https://github.com/agentmorris/MegaDetector/blob/main/megadetector.md#1-install-prerequisites-mambaforge-git-and-nvidia-stuff).  If you already have Mambaforge, git, and the latest NVIDIA driver installed, nothing to see here.
+
+#### Download the model file and class list
+
+* Download the model file.  As of the time I'm writing this README, the most recent model file is [usgs-tegus-yolov5x-231003-b8-img1280-e3002-best.pt](https://github.com/agentmorris/usgs-tegus/releases/download/v1.0.0/usgs-tegus-yolov5x-231003-b8-img1280-e3002-best.pt).  Download that file to your computer; it can be anywhere that's convenient, you'll specify the full path to the model file later.
+* Download the accompanying dataset.yaml file, which indicates which model outputs (0, 1, 2, etc.) correspond to which categories (crow, tegu, etc.).  As of the time I'm writing this README, the dataset.yaml file is [here](https://github.com/agentmorris/usgs-tegus/releases/download/v1.0.0/dataset.yaml).
+
+#### Python environment setup
+
+These instructions are for Windows, but only in the sense that "c:\git" looks like a Windows path.  Other than the recommended folder, everything else is the same on Linux/MacOS.
+
+The first time you set all of this up, open your Mambaforge prompt, and run:
+
+```batch
+mkdir c:\git
+cd c:\git
+git clone https://github.com/ultralytics/yolov5 yolov5-tegus
+git clone https://github.com/agentmorris/usgs-tegus
+cd c:\git\usgs-tegus
+mamba create -n usgs-tegus python=3.11 pip -y
+mamba activate usgs-tegus
+pip install -r requirements.txt
+```
+
+<a name="windows-new-shell"></a>
+Your environment is set up now!  In the future, when you open your Mambaforge prompt, you only need to run:
+
+```batch
+mamba activate usgs-tegus
+set PYTHONPATH=c:\git\MegaDetector
+```
+
+### Actually running the model
+
+You can run the model with the run_detector_batch script from the MegaDetector Python package, which you just installed.  First, when you open a new Mambaforge prompt, don't forget to do this:
+
+```batch
+mamba activate usgs-tegus
+set PYTHONPATH=c:\git\MegaDetector
+```
+
+Then you can run the script like this (using Windows syntax), substituting real paths for all the arguments:
+
+```batch
+cd c:\git\MegaDetector\megadetector\detection
+python run_inference_with_yolov5_val.py [MODEL_PATH] [IMAGE_FOLDER] [OUTPUT_FILE] --yolo_dataset_file [YOLO_DATASET_FILE] --yolo_working_folder "c:\git\yolov5-tegus"  --augment_enabled 0 --device 0
+```
+
+* MODEL_PATH is the full path to the .pt you downloaded earlier, e.g. "c:\models\usgs-tegus-yolov5x-231003-b8-img1280-e3002-best.pt"
+* IMAGE_FOLDER is the root folder of all the images you want to process
+* OUTPUT_FILE is the .json file that will contain model output
+* YOLO_DATASET_FILE is the .yaml file you downloaded earlier
+
+If you don't have a GPU, change this:
+
+`--device 0`
+
+...to this:
+
+`--device cpu`
+
+
+### Previewing the results
+
+The .json file you just created will open in Timelapse, but if you want to preview the results in a browser, you can use:
+
+```batch
+cd c:\git\MegaDetector\megadetector\postprocessing
+python postprocess_batch_results.py [OUTPUT_FILE] [OUTPUT_DIR] --image_base_dir [IMAGE_FOLDER] --n_cores 4 --open_output_file
+
+* IMAGE_FOLDER is the same image folder you specified in the previous step
+* OUTPUT_FILE is the .json file you created in the previous step
+* OUTPUT_DIR is a folder in which you want to create an HTML preview
 
 ## TODOs 
 
