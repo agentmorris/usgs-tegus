@@ -1,5 +1,11 @@
 # USGS tegu detector
 
+## Contents
+
+* [Overview](#overview)
+* [Training the model](#training-the-model)
+* [Running the model](#running-the-model)
+
 ## Overview
 
 The code in this repo trains, runs, and evaluates models to detect wildlife in camera trap images, particularly invasive [tegus](https://en.wikipedia.org/wiki/Tegu) in Florida.  This project is trained on data provided by the [USGS Fort Collins Science Center](https://www.usgs.gov/centers/fort-collins-science-center).
@@ -72,7 +78,7 @@ The output at the end of this step is:
 
 ### Convert to COCO format, and preview the COCO dataset to make sure everything still looks sensible
 
-This happened via [labelme_to_coco.py](https://github.com/agentmorris/MegaDetector/blob/main/data_management/labelme_to_coco.py); the driver code is in [prepare-labelme-files-from-md-results.py](prepare-labelme-files-from-md-results.py).  Along the way, I also resized most images to 1600px on the long side in-place, with bounding boxes resized accordingly; this happened via [resize_coco_dataset.py](https://github.com/agentmorris/MegaDetector/blob/main/data_management/resize_coco_dataset.py).  At the end of this step, we do a complete resize operation on the whole database (images and .json).
+This happened via [labelme_to_coco.py](https://github.com/agentmorris/MegaDetector/blob/main/megadetector/data_management/labelme_to_coco.py); the driver code is in [prepare-labelme-files-from-md-results.py](prepare-labelme-files-from-md-results.py).  Along the way, I also resized most images to 1600px on the long side in-place, with bounding boxes resized accordingly; this happened via [resize_coco_dataset.py](https://github.com/agentmorris/MegaDetector/blob/main/megadetector/data_management/resize_coco_dataset.py).  At the end of this step, we do a complete resize operation on the whole database (images and .json).
 
 The input to this step is:
 
@@ -99,7 +105,7 @@ This happens in [prepare-yolo-training-set.py](prepare-yolo-training-set.py).  S
 
 ### Add blanks from LILA
 
-This happens in [add-lila-blanks.py](add-lila-blanks.py).  Blanks are originally fetched from LILA and organized via [create_lila_blank_set.py](https://github.com/agentmorris/MegaDetector/blob/main/data_management/lila/create_lila_blank_set.py), but the splitting into train/val and the resizing to 1600px for faster training happens here.
+This happens in [add-lila-blanks.py](add-lila-blanks.py).  Blanks are originally fetched from LILA and organized via [create_lila_blank_set.py](https://github.com/agentmorris/MegaDetector/blob/main/megadetector/data_management/lila/create_lila_blank_set.py), but the splitting into train/val and the resizing to 1600px for faster training happens here.
 
 
 ### Train
