@@ -115,6 +115,7 @@ Training (using MDv5 as a starting point) happens at the CLI, but [train-usgs-te
 * Renders detections onto thumbnail images
 * Generates confusion matrices and HTML preview pages to present the results
 
+
 ## Running the model
 
 ### Environment setup
@@ -183,8 +184,6 @@ If you don't have a GPU, change this:
 ...to this:
 
 `--device cpu`
-
-
 
 ### Previewing the results
 
