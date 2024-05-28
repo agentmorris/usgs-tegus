@@ -155,6 +155,8 @@ set PYTHONPATH=c:\git\MegaDetector
 
 ### Actually running the model
 
+<b>These instructions currently assume you can open a mambaforge prompt with admin privileges.</b>  If you can't... we'll talk and I'll update this README.
+
 You can run the model with the run_detector_batch script from the MegaDetector Python package, which you just installed.  First, when you open a new Mambaforge prompt, don't forget to do this:
 
 ```batch
@@ -181,6 +183,7 @@ If you don't have a GPU, change this:
 ...to this:
 
 `--device cpu`
+
 
 
 ### Previewing the results
