@@ -192,9 +192,10 @@ The .json file you just created will open in Timelapse, but if you want to previ
 ```batch
 cd c:\git\MegaDetector\megadetector\postprocessing
 python postprocess_batch_results.py [OUTPUT_FILE] [OUTPUT_DIR] --image_base_dir [IMAGE_FOLDER] --n_cores 4 --open_output_file
+```
 
 * IMAGE_FOLDER is the same image folder you specified in the previous step
 * OUTPUT_FILE is the .json file you created in the previous step
 * OUTPUT_DIR is a folder in which you want to create an HTML preview
-```
+
 
