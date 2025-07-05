@@ -8,7 +8,7 @@
 
 ## Overview
 
-The code in this repo trains, runs, and evaluates models to detect wildlife in camera trap images, particularly invasive [tegus](https://en.wikipedia.org/wiki/Tegu) in Florida.  This project is trained on data provided by the [USGS Fort Collins Science Center](https://www.usgs.gov/centers/fort-collins-science-center).
+The code in this repo trains, runs, and evaluates models to detect wildlife in camera trap images, particularly invasive [tegus](https://en.wikipedia.org/wiki/Tegu) in Florida.  This project is trained on data provided by the [USGS Fort Collins Science Center](https://www.usgs.gov/centers/fort-collins-science-center).  More information about USGS's use case is available in this [USGS blog post](https://www.usgs.gov/centers/fort-collins-science-center/science/early-detection-and-rapid-response-tools-invasive-tegu).
 
 <img src="tegu-image.jpg" style="width:600px;">
 
