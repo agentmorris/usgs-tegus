@@ -1,4 +1,4 @@
-# USGS tegu detector
+# Tegu Detector
 
 ## Contents
 
